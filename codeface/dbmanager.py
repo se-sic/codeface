@@ -330,16 +330,10 @@ class DBManager:
             if len(tags) > 0:
                 previous_rev = tags[-1]
             for rev, rc in zip(revs, rcs)[len(tags):]:
-                self.doExecCommit("INSERT INTO release_timeline "
-                                    "(type, tag, projectId) "
-                                    "VALUES (%s, %s, %s)",
-                                    ("release", rev, pid))
+                self.insert_release_timeline(pid, "release", rev)
 
                 if previous_rev is not None and rc:
-                    self.doExecCommit("INSERT INTO release_timeline "
-                                        "(type, tag, projectId) "
-                                        "VALUES (%s, %s, %s)",
-                                        ("rc", rc, pid))
+                    self.insert_release_timeline(pid, "rc", rc)
 
                 if previous_rev is not None:
                     startID = self.getRevisionID(pid, previous_rev)
@@ -364,6 +358,15 @@ class DBManager:
                         "(type, tag, projectId) "
                         "VALUES (%s, %s, %s)",
                         (kind, tag, project_id))
+                        
+    def insert_release_range(self, project_id, startID, endID, rcID):
+        self.doExecCommit("INSERT INTO release_range "
+                        "(releaseStartId, releaseEndId, "
+                        "projectId, releaseRCStartId) "
+                        "VALUES (%s, %s, %s, %s)",
+                        (startID, endID, project_id, rcID))                      
+                    
+
 def tstamp_to_sql(tstamp):
     """Convert a Unix timestamp into an SQL compatible DateTime string"""
     return(datetime.utcfromtimestamp(tstamp).strftime("%Y-%m-%d %H:%M:%S"))
