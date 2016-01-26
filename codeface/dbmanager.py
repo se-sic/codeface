@@ -348,11 +348,7 @@ class DBManager:
                         rcID = self.getRCID(pid, rc)
                     else:
                         rcID = "NULL"
-                    self.doExecCommit("INSERT INTO release_range "
-                                        "(releaseStartId, releaseEndId, "
-                                        "projectId, releaseRCStartId) "
-                                        "VALUES (%s, %s, %s, %s)",
-                                        (startID, endID, pid, rcID))
+                    self.insert_release_range(pid, startID, endID, rcID)
                     new_ranges_to_process.append(self.getReleaseRangeID(pid,
                             (startID, endID)))
                 previous_rev = rev
@@ -360,6 +356,14 @@ class DBManager:
         # Return the ids of the release ranges we have to process
         return new_ranges_to_process
 
+    def insert_release_timeline(self, project_id, kind, tag):
+        try:
+            self.getTagID(project_id, tag, kind)
+        except:
+            self.doExecCommit("INSERT INTO release_timeline "
+                        "(type, tag, projectId) "
+                        "VALUES (%s, %s, %s)",
+                        (kind, tag, project_id))
 def tstamp_to_sql(tstamp):
     """Convert a Unix timestamp into an SQL compatible DateTime string"""
     return(datetime.utcfromtimestamp(tstamp).strftime("%Y-%m-%d %H:%M:%S"))
