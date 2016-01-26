@@ -39,15 +39,29 @@ def project_setup(conf, recreate):
     # Set up project in database and retrieve ranges to analyse
     log.info("=> Setting up project '{c[project]}'".format(c=conf))
     dbm = DBManager(conf)
-    new_range_ids = dbm.update_release_timeline(conf["project"],
-            conf["tagging"], conf["revisions"], conf["rcs"],
-            recreate_project=recreate)
     project_id = dbm.getProjectID(conf["project"], conf["tagging"])
     revs = conf["revisions"]
-    all_range_ids = [dbm.getReleaseRangeID(project_id,
-            ( dbm.getRevisionID(project_id, start),
-              dbm.getRevisionID(project_id, end)))
-            for (start, end) in zip(revs, revs[1:])]
+
+    size = 3 # we want to use triplets
+    # FIXME check that size of list is dividable by size
+    revs_new = [revs[i:i+size] for i  in range(0, len(revs), size)]
+
+    ranges = []
+    for (base, left, right) in revs_new:
+         ranges.append((base, left))
+         ranges.append((base, right))
+
+    all_range_ids = []
+    for (start, end) in ranges:
+        dbm.insert_release_timeline(project_id, "release", start)
+        dbm.insert_release_timeline(project_id, "release", end)
+
+        start_id = dbm.getRevisionID(project_id, start)
+        end_id = dbm.getRevisionID(project_id, end)
+       
+        dbm.insert_release_range(project_id, start_id, end_id, start_id)
+        all_range_ids.append(dbm.getReleaseRangeID(project_id, (start_id, end_id)))
+
     return project_id, dbm, all_range_ids
 
 def project_analyse(resdir, gitdir, codeface_conf, project_conf,
