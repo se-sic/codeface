@@ -42,14 +42,9 @@ def project_setup(conf, recreate):
     project_id = dbm.getProjectID(conf["project"], conf["tagging"])
     revs = conf["revisions"]
 
-    size = 3 # we want to use triplets
+    size = 2 # we want to use triplets
     # FIXME check that size of list is dividable by size
-    revs_new = [revs[i:i+size] for i  in range(0, len(revs), size)]
-
-    ranges = []
-    for (base, left, right) in revs_new:
-         ranges.append((base, left))
-         ranges.append((base, right))
+    ranges = [revs[i:i+size] for i  in range(0, len(revs), size)]
 
     all_range_ids = []
     for (start, end) in ranges:
