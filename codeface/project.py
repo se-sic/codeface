@@ -42,7 +42,7 @@ def project_setup(conf, recreate):
     project_id = dbm.getProjectID(conf["project"], conf["tagging"])
     revs = conf["revisions"]
 
-    size = 2 # we want to use triplets
+    size = 2 # we want to use pairs
     # FIXME check that size of list is dividable by size
     ranges = [revs[i:i+size] for i  in range(0, len(revs), size)]
 
