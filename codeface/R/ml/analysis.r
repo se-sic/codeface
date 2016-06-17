@@ -463,7 +463,7 @@ dispatch.all <- function(conf, repo.path, resdir) {
   dates <- sort(dates)
 
   ## Compute a list of intervals for the project release cycles
-  cycles <- get.cycles(conf, allow.empty.ranges=TRUE)
+  cycles <- data.frame() # get.cycles(conf, allow.empty.ranges=TRUE)
 
   if (nrow(cycles) != 0) {
     ## NOTE: We store the lubridate intervals in a list (instead of
