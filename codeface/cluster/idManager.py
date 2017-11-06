@@ -25,12 +25,14 @@ import json
 import string
 import random
 
+
 class idManager:
     """Provide unique IDs for developers.
 
     This class provides an interface to the REST id server. Heuristics to
     detect developers who operate under multiple identities are included
     in the server."""
+
     def __init__(self, dbm, conf):
         self.subsys_names = []
 
@@ -59,6 +61,11 @@ class idManager:
         self._projectID = self._dbm.getProjectID(conf["project"],
                                                  conf["tagging"])
 
+        # Construct request headers
+        self.headers = {"Content-type":
+                            "application/x-www-form-urlencoded; charset=utf-8",
+                        "Accept": "text/plain"}
+
     # We need the subsystem names because PersonInfo instances
     # are created from this class -- and we want to know in which
     # subsystem(s) a developer is active
@@ -84,14 +91,14 @@ class idManager:
                     # Replace "Surname, Name" by "Name Surname"
                     name = "{0} {1}".format(m2.group(2), m2.group(1))
 
-#                print "Fixup for addr {0} required -> ({1}/{2})".format(addr, name, email)
+                # print "Fixup for addr {0} required -> ({1}/{2})".format(addr, name, email)
             else:
                 # In this case, no eMail address was specified.
-#                print("Fixup for email required, but FAILED for {0}".format(addr))
+                # print("Fixup for email required, but FAILED for {0}".format(addr))
                 name = addr
                 rand_str = "".join(random.choice(string.ascii_lowercase + string.digits)
                                    for i in range(10))
-                email = "could.not.resolve@"+rand_str
+                email = "could.not.resolve@" + rand_str
 
         email = email.lower()
 
@@ -106,12 +113,9 @@ class idManager:
         params = urllib.urlencode({'projectID': self._projectID,
                                    'name': name,
                                    'email': email})
-        headers = { "Content-type":
-                        "application/x-www-form-urlencoded; charset=utf-8",
-                    "Accept": "text/plain" }
 
         try:
-            self._conn.request("POST", "/post_user_id", params, headers)
+            self._conn.request("POST", "/post_user_id", params, self.headers)
             res = self._conn.getresponse()
         except:
             log.exception("Could not reach ID service. Is the server running?\n")
@@ -125,7 +129,8 @@ class idManager:
             id = jsond["id"]
         except KeyError:
             raise Exception("Bad response from server: '{}'".format(jsond))
-        return(id)
+
+        return (id)
 
     def getPersonID(self, addr):
         """Obtain a unique ID from contributor identity credentials.
@@ -143,10 +148,25 @@ class idManager:
 
         # Construct a local instance of PersonInfo for the contributor
         # if it is not yet available
-        if (not(self.persons.has_key(ID))):
+        if not self.persons.has_key(ID):
             self.persons[ID] = PersonInfo(self.subsys_names, ID, name, email)
 
         return ID
+
+    def getPersonFromDB(self, person_id):
+        """Query the ID database for a contributor and all corresponding data"""
+
+        try:
+            self._conn.request("GET", "/getUser/{}".format(person_id), headers=self.headers)
+            res = self._conn.getresponse()
+        except:
+            log.exception("Could not reach ID service. Is the server running?\n")
+            raise
+
+        result = res.read()
+        jsond = json.loads(result)[0]
+
+        return (jsond)
 
     def getPersons(self):
         return self.persons
