@@ -525,3 +525,66 @@ def generate_analysis_windows(repo, window_size_months):
     rcs = [None for x in range(len(revs))]
 
     return revs_hash, rcs, revs_date
+
+
+def encode_as_utf8(string):
+    """
+    Encode the given string properly in UTF-8,
+    independent from its internal representation (str or unicode).
+
+    This function removes any four-byte-encoded unicode characters and replaces them
+    with ":4bytereplacement:" as they do not work with 'utf8' encoding of MySQL.
+
+    :param string: any string
+    :return: the UTF-8 encoded string of type str
+    """
+
+    # if we have a unicode string, it's easy to encode as UTF-8
+    if isinstance(string, unicode):
+        return string.encode("utf-8")
+
+    ## maybe not a string at all
+    if not isinstance(string, str):
+        return string
+
+    # convert to real unicode-utf8 encoded string
+    string = unicode(string, "unicode-escape", errors="replace").encode("utf-8")
+
+    # replace any 4-byte characters with four_byte_replacement
+    try:
+        # UCS-4 build
+        four_byte_regex = re.compile(u'[\U00010000-\U0010ffff]')
+    except re.error:
+        # UCS-2 build
+        four_byte_regex = re.compile(u'[\uD800-\uDBFF][\uDC00-\uDFFF]')
+
+    four_byte_replacement = r":4bytereplacement:"
+    string = four_byte_regex.sub(four_byte_replacement, string.decode("utf-8")).encode("utf-8")
+
+    return string
+
+
+def encode_items_as_utf8(items):
+    """
+    Encode the given list/tuple/dict of strings properly in UTF-8,
+    independent from its internal representation (str or unicode).
+
+    This function uses encode_as_utf8(string) internally.
+
+    :param string: any string
+    :return: the UTF-8 encoded string of type str
+    """
+
+    # unpack values if we have a dictionary
+    items_unpacked = items
+    if isinstance(items, dict):
+        items_unpacked = items.values()
+
+    # encode each item as UTF-8 properly
+    items_enc = map(encode_as_utf8, items_unpacked)
+
+    # add key for dict again
+    if isinstance(items, dict):
+        items_enc = dict(zip(items.keys(), items_enc))
+
+    return items_enc
