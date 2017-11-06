@@ -1452,7 +1452,8 @@ class gitVCS (VCS):
         rmv_char = '[.{}();:\[\]]'
         for line_num, src_line in enumerate(file_layout_src):
             src_line_rmv = re.sub(rmv_char, ' ', src_line.strip())
-            file_commit.addFuncImplLine(line_num, src_line_rmv)
+            src_line_utf8 = unicode(src_line_rmv, "unicode-escape", errors='ignore').encode("utf-8")
+            file_commit.addFuncImplLine(line_num, src_line_utf8)
 
 
     def cmtHash2CmtObj(self, cmtHash):
