@@ -50,7 +50,9 @@ class DBManager:
                                       port=conf["dbport"],
                                       user=conf["dbuser"],
                                       passwd=conf["dbpwd"],
-                                      db=conf["dbname"])
+                                      db=conf["dbname"],
+                                      charset="utf8",
+                                      use_unicode=True)
             log.debug(
                 "Establishing MySQL connection to "
                 "{c[dbuser]}@{c[dbhost]}:{c[dbport]}, DB '{c[dbname]}'"
