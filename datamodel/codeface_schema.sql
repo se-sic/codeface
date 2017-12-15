@@ -313,6 +313,7 @@ CREATE TABLE IF NOT EXISTS `codeface`.`commit` (
   `authorTimeOffset` INT NULL DEFAULT NULL COMMENT '',
   `authorTimezones` VARCHAR(255) NULL DEFAULT NULL COMMENT '',
   `author` BIGINT NOT NULL COMMENT '',
+  `committer` BIGINT NOT NULL COMMENT '',
   `projectId` BIGINT NOT NULL COMMENT '',
   `ChangedFiles` INT NULL DEFAULT NULL COMMENT '',
   `AddedLines` INT NULL DEFAULT NULL COMMENT '',
@@ -338,6 +339,11 @@ CREATE TABLE IF NOT EXISTS `codeface`.`commit` (
     REFERENCES `codeface`.`person` (`id`)
     ON DELETE CASCADE
     ON UPDATE CASCADE,
+  CONSTRAINT `commit_committer`
+    FOREIGN KEY (`committer`)
+    REFERENCES `codeface`.`person` (`id`)
+    ON DELETE CASCADE
+    ON UPDATE CASCADE,
   CONSTRAINT `commit_project`
     FOREIGN KEY (`projectId`)
     REFERENCES `codeface`.`project` (`id`)
@@ -350,7 +356,7 @@ CREATE TABLE IF NOT EXISTS `codeface`.`commit` (
     ON UPDATE CASCADE)
 ENGINE = InnoDB;
 
-CREATE INDEX `commit_person_idx` ON `codeface`.`commit` (`author` ASC)  COMMENT '';
+CREATE INDEX `commit_person_idx` ON `codeface`.`commit` (`author` ASC, `committer` ASC)  COMMENT '';
 
 CREATE INDEX `commit_project_idx` ON `codeface`.`commit` (`projectId` ASC)  COMMENT '';
 
