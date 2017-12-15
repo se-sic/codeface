@@ -1096,6 +1096,7 @@ def writeCommitData2File(cmtlist, id_mgr, outdir, releaseRangeID, dbm, conf,
         values = {"commitHash" : cmt.id,
                   "commitDate" : tstamp_to_sql(int(cmt.getCdate())),
                   "author" : cmt.getAuthorPI().getID(),
+                  "committer": cmt.getCommitterPI().getID(),
                   "authorDate" : tstamp_to_sql(int(cmt.adate)),
                   "authorTimeOffset" : cmt.adate_tz,
                   "projectId" : projectID,
@@ -1379,13 +1380,14 @@ def populatePersonDB(cmtlist, id_mgr, link_type=None):
         cmt.setAuthorPI(pi)
         pi.addCommit(cmt)
 
+        #create person for committer
+        ID_c = id_mgr.getPersonID(cmt.getCommitterName())
+        pi_c = id_mgr.getPI(ID_c)
+        cmt.setCommitterPI(pi_c)
+
         if link_type in \
                 (LinkType.proximity, LinkType.committer2author,
                  LinkType.file, LinkType.feature, LinkType.feature_file):
-            #create person for committer
-            ID_c = id_mgr.getPersonID(cmt.getCommitterName())
-            pi_c = id_mgr.getPI(ID_c)
-            cmt.setCommitterPI(pi_c)
             if ID_c != ID:
                 # Only add the commit to the committer's person instance
                 # if committer and author differ, otherwise contributions
