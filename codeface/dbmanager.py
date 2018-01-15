@@ -18,6 +18,7 @@
 # Thin sql database wrapper
 
 import MySQLdb as mdb
+import time
 from datetime import datetime
 from logging import getLogger;
 from contextlib import contextmanager
@@ -88,10 +89,23 @@ class DBManager:
                         log.warning("Recoverable deadlock in MySQL - retrying.")
                     elif dbe.args[0] == 2006:  # Server gone away...
                         log.warning("MySQL Server gone away, trying to reconnect.")
+                        time.sleep(60)
                         self.con.ping(True)
-                    elif dbe.args[0] == 2013:  # Lost connection to MySQL server during query...
+                    elif dbe.args[0] == 2013 or dbe.args[0] == 1053:  # Lost connection to MySQL server during query | Server shutdown in progress
                         log.warning("Lost connection to MySQL server during query, trying to reconnect.")
+                        time.sleep(60)
                         self.con.ping(True)
+                    elif dbe.args[0] == 1153:  # Got a packet bigger than 'max_allowed_packet' bytes
+                        log.warning("Sent a too big packet ({lnos} lines), retrying with smaller packets.".format(
+                            lnos=len(args)))
+                        ## split package into smaller packets of size 'chunk_size'
+                        chunk_size = 100
+                        args_list = [args[i:i + chunk_size] for i in range(0, len(args), chunk_size)]
+                        ## retrying
+                        time.sleep(60)
+                        self.con.ping(True)
+                        for chunk in args_list:
+                            self.doExec(stmt, chunk)
                     else:
                         raise
 
