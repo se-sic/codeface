@@ -79,7 +79,6 @@ class DBManager:
                 "".format(c=conf, e=e.args))
             raise
 
-
     def doExec(self, stmt, args=None):
         with _log_db_error(stmt, args):
             retryCount = 0
