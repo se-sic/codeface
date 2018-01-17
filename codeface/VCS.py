@@ -53,7 +53,7 @@ from logging import getLogger
 from codeface.linktype import LinkType
 
 log = getLogger(__name__)
-from .util import execute_command
+from .util import execute_command, encode_as_utf8
 
 class Error(Exception):
     """Base class for exceptions in this module."""
@@ -1452,7 +1452,7 @@ class gitVCS (VCS):
         rmv_char = '[.{}();:\[\]]'
         for line_num, src_line in enumerate(file_layout_src):
             src_line_rmv = re.sub(rmv_char, ' ', src_line.strip())
-            src_line_utf8 = unicode(src_line_rmv, "unicode-escape", errors='ignore').encode("utf-8")
+            src_line_utf8 = encode_as_utf8(src_line_rmv)
             file_commit.addFuncImplLine(line_num, src_line_utf8)
 
 

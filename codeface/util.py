@@ -522,3 +522,27 @@ def generate_analysis_windows(repo, window_size_months):
     rcs = [None for x in range(len(revs))]
 
     return revs_hash, rcs, revs_date
+
+
+def encode_as_utf8(string):
+    """
+
+    :param string:
+    :return:
+    """
+
+    # convert to real unicode-utf8 encoded string
+    string = unicode(string, "unicode-escape", errors="replace").encode("utf-8")
+
+    # replace any 4-byte characters with four_byte_replacement
+    try:
+        # UCS-4 build
+        four_byte_regex = re.compile(u'[\U00010000-\U0010ffff]')
+    except re.error:
+        # UCS-2 build
+        four_byte_regex = re.compile(u'[\uD800-\uDBFF][\uDC00-\uDFFF]')
+
+    four_byte_replacement = r":4bytereplacement:"
+    string = four_byte_regex.sub(four_byte_replacement, string.decode("utf-8")).encode("utf-8")
+
+    return string

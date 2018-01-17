@@ -41,6 +41,7 @@ from codeface.dbmanager import DBManager, tstamp_to_sql
 from .PersonInfo import PersonInfo
 from .idManager import idManager
 from codeface.linktype import LinkType
+from codeface.util import encode_as_utf8
 
 #Global Constants
 SEED = 448
@@ -1239,7 +1240,7 @@ def writeDependsToDB(
                                 for indx, impl in enumerate(depend_impl_list)]
 
                 # construct rows to be put in DB
-                rows = [(key, file, entityId, entity_type_current, count, impl)
+                rows = [(key, file, encode_as_utf8(entityId), entity_type_current, count, impl)
                         for file, entityId, count, impl in depends_list]
                 cmt_depend_rows.extend(rows)
 
