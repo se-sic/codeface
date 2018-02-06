@@ -58,12 +58,21 @@ if (is.na(num.cores)) {
     num.cores <- 1
 }
 
+## install potentially unresolvable dependencies
+install.packages("devtools")
+library(devtools)
+devtools::install_url("https://cran.r-project.org/src/contrib/Archive/slam/slam_0.1-40.tar.gz")
+devtools::install_url("https://cran.r-project.org/src/contrib/Archive/arules/arules_1.5-0.tar.gz")
+devtools::install_url("https://cran.r-project.org/src/contrib/Archive/proxy/proxy_0.4-16.tar.gz")
+
+## install from BioConductor
 p <- filter.installed.packages(c("BiRewire", "graph"))
 if(length(p) > 0) {
     source("http://bioconductor.org/biocLite.R")
     biocLite(p)
 }
 
+## install from CRAN
 p <- filter.installed.packages(c("statnet", "tm", "optparse", "arules", "data.table", "plyr",
                                  "igraph", "zoo", "xts", "lubridate", "xtable", "ggplot2",
                                  "reshape", "wordnet", "stringr", "yaml", "ineq",
