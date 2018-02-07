@@ -32,7 +32,7 @@ from progressbar import ProgressBar, Percentage, Bar, ETA
 
 from .VCS import gitVCS
 from .dbmanager import DBManager
-from .util import execute_command
+from .util import execute_command, encode_items_as_utf8
 from os import listdir
 
 import xml.etree.cElementTree as ET
@@ -55,8 +55,8 @@ def get_email_from_jira(userid, jira):
                 email[i] = '@'
         email = ''.join(email)
         return email
-    user = jira.user(id=userid, expand=["name","emailAddress"])
-    user_data = (user.name, fix_email_format(user.emailAddress))
+    user = jira.user(id=userid, expand=["name", "emailAddress", "displayName"])
+    user_data = (user.name, fix_email_format(user.emailAddress), user.displayName)
     return user_data
 
 
@@ -111,6 +111,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
     widgets = ['Parsing jira issues: ', Percentage(), ' ', Bar(), ' ', ETA()]
     pbar = ProgressBar(widgets=widgets, maxval=total).start()
     emails = {} # Map ids to emails
+    display_names = {} # Maps ids to author names
 
     for i, userid in enumerate(user_ids):
         res = None
@@ -125,6 +126,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
             pass
         else:
             emails[res[0]] = res[1]
+            display_names[res[0]] = res[2]
 
         pbar.update(i)
 
@@ -133,17 +135,19 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
     # IssueID (e.g., HIVE-1937)
     # IssueType (e.g., Bug, New Feature, ...)
     # AuthorID (alphanumeric jira id, e.g., cwstein)
+    # AuthorName (author's clear name, e.g., Charlie Winklestein)
     # CommentTimestamp (format: Tue, 1 Feb 2011 01:47:11 +0000)
     # userEmail (pure address without name, e.g., abc@apache.org)
     with open(os.path.join(resdir, "jira_issue_comments.csv"), 'w') as out:
-        fieldnames = ['IssueID', 'IssueType', 'AuthorID', 'CommentTimestamp', 'userEmail']
+        fieldnames = ['IssueID', 'IssueType', 'AuthorID', 'AuthorName', 'CommentTimestamp', 'userEmail']
         writer = csv.DictWriter(out, fieldnames=fieldnames)
 
         writer.writeheader()
         for row in issue_list:
             try:
                 row["userEmail"] = emails[row["AuthorID"]]
-                writer.writerow(row)
+                row["AuthorName"] = display_names[row["AuthorID"]]
+                writer.writerow(encode_items_as_utf8(row))
             except KeyError:
                 # Skip the entry if the email address of the user could not be resolved
                 log.warn('Could not resolve user ID {}, skipping entry'.format(userid))
@@ -279,7 +283,7 @@ def parseGitLogOutput(dat, dat_hashes, repo, outfile):
 def createFileDevTable(dbm, project_id, range_id, outfile):
     dat = dbm.get_file_dev(project_id, range_id)
 
-    with open(outfile, 'w') as out:
+    with open(outfile, 'wb') as out:
         csv_out = csv.writer(out, delimiter="\t")
         csv_out.writerow(['id', 'commitHash', 'commitDate', 'author', 'description',
                           'file', 'commitId', 'fileSize'])
