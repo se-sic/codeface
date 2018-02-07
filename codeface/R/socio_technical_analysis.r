@@ -140,7 +140,7 @@ compute.communication.relations <- function(conf, communication.type,
 ## Compute entity-entity relations
 compute.ee.relations <- function(conf, vcs.dat, start.date, end.date,
                                  dependency.type, artifact.type,
-                                 dsm.filename, historical.limit) {
+                                 dsm.filename, historical.limit, file.limit) {
     ensure.supported.dependency.type(dependency.type)
     ensure.supported.artifact.type(artifact.type)
 
@@ -162,7 +162,11 @@ compute.ee.relations <- function(conf, vcs.dat, start.date, end.date,
         freq.item.sets <- compute.frequent.items(commit.df.hist)
         ## Compute an edgelist
         dependency.dat <- compute.item.sets.edgelist(freq.item.sets)
-        names(dependency.dat) <- c("V1", "V2")
+	    if (ncol(dependency.dat) ==0) {
+	        dependency.dat <- data.frame()
+	    } else {
+            names(dependency.dat) <- c("V1", "V2")
+	    }
     } else if (dependency.type == "dsm") {
         dependency.dat <- load.sdsm(dsm.filename)
         if (is.null(dependency.dat)) {
@@ -447,7 +451,7 @@ do.conway.analysis <- function(conf, global.resdir, range.resdir, start.date, en
     }
     dependency.dat <- compute.ee.relations(conf, vcs.dat, start.date, end.date,
                                            dependency.type, artifact.type,
-                                           dsm.filename, historical.limit)
+                                           dsm.filename, historical.limit, file.limit)
 
     ## Generate a bipartite network that describes the socio-technical structure
     ## of a development project. This data structure is the core of the Conway

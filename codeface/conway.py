@@ -235,12 +235,25 @@ def parseGitLogOutput(dat, outfile):
 def createFileDevTable(dbm, project_id, range_id, outfile):
     dat = dbm.get_file_dev(project_id, range_id)
 
-    with open(outfile, 'w') as out:
+	
+    def __encode(line):
+        """Encode the given line (a tuple of columns) properly in UTF-8."""
+
+        lineres = ()  # re-encode column if it is unicode
+        for column in line:
+            if type(column) is unicode:
+                lineres += (column.encode("utf-8"),)
+            else:
+                lineres += (column,)
+
+        return lineres
+
+    with open(outfile, 'wb') as out:
         csv_out = csv.writer(out, delimiter="\t")
         csv_out.writerow(['id', 'commitHash', 'commitDate', 'author', 'description',
                           'file', 'commitId', 'fileSize'])
         for row in dat:
-            csv_out.writerow(row)
+            csv_out.writerow(__encode(row))
 
 def parseCommitLoC(conf, dbm, project_id, range_id, start_rev, end_rev, outdir, repo):
     """Given a release range by its boundaries, compute the amount
