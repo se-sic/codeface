@@ -56,7 +56,7 @@ def get_email_from_jira(userid, jira):
         email = ''.join(email)
         return email
     user = jira.user(id=userid,expand=["name","displayName","emailAddress"])
-    user_data = (user.name, user.displayName, fix_email_format(user.emailAddress))
+    user_data = (user.name, unicode(user.displayName), fix_email_format(user.emailAddress))
     return user_data
 
 
@@ -78,20 +78,32 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
                     issue_elements = channel_element.getchildren()
                     issue_key = None
                     issue_type = None
+                    issue_reporter = None
+                    issue_creation_date = None
+
                     for issue in issue_elements:
                         if issue.tag == "key":
                             issue_key = issue.text
                         if issue.tag == "type":
                             issue_type = issue.text
+
+                        if issue.tag == "reporter":
+                            issue_reporter = issue.get('username').encode('utf-8')
+                        if issue.tag == "created":
+                            issue_creation_date = issue.text.encode('utf-8')
                         if issue.tag  == "comments":
                              for comment in issue:
-                                 issue_comment_author = None
                                  issue_comment_author = comment.get('author').encode('utf-8')
                                  issue_comment_timestamp = comment.get('created')
                                  issue={'IssueID': issue_key, 'IssueType': issue_type,
                                        'AuthorID': issue_comment_author,
                                        'CommentTimestamp': issue_comment_timestamp }
                                  issue_list.append(issue)
+
+                    reporter_comment = {'IssueID': issue_key, 'IssueType': issue_type,
+                             'AuthorID': issue_reporter,
+                             'CommentTimestamp': issue_creation_date}
+                    issue_list.append(reporter_comment)
 
     comment_authors_df = pd.DataFrame(issue_list,
                                       columns=("IssueID", "IssueType",
@@ -126,7 +138,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
     merged = pd.merge(comment_authors_df, email_df, on='AuthorID')
 
     # ... and store the results as CSV file (TODO: Place this in the codeface DB)
-    merged.to_csv(os.path.join(resdir, "jira-comment-authors-with-email.csv"), index=False)
+    merged.to_csv(os.path.join(resdir, "jira-comment-authors-with-email.csv"), index=False, encoding="utf-8")
 
 
 def dispatch_jira_processing(resdir, titandir, conf):
