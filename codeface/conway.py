@@ -55,8 +55,8 @@ def get_email_from_jira(userid, jira):
                 email[i] = '@'
         email = ''.join(email)
         return email
-    user = jira.user(id=userid,expand=["name","emailAddress"])
-    user_data = (user.name,fix_email_format(user.emailAddress))
+    user = jira.user(id=userid,expand=["name","displayName","emailAddress"])
+    user_data = (user.name, user.displayName, fix_email_format(user.emailAddress))
     return user_data
 
 
@@ -122,7 +122,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
         pbar.update(i)
 
     # Add a new column with the inferred email addresses to the data frame
-    email_df = pd.DataFrame(email_list, columns=('AuthorID', 'userEmail'))
+    email_df = pd.DataFrame(email_list, columns=('AuthorID', 'AuthorName', 'userEmail'))
     merged = pd.merge(comment_authors_df, email_df, on='AuthorID')
 
     # ... and store the results as CSV file (TODO: Place this in the codeface DB)
