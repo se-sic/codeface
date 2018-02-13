@@ -56,7 +56,7 @@ def get_email_from_jira(userid, jira):
         email = ''.join(email)
         return email
     user = jira.user(id=userid, expand=["name", "emailAddress", "displayName"])
-    user_data = (user.name, fix_email_format(user.emailAddress), user.displayName)
+    user_data = (user.name.lower(), fix_email_format(user.emailAddress), unicode(user.displayName))
     return user_data
 
 
@@ -85,7 +85,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
                         if issue.tag == "type":
                             issue_type = issue.text
                         if issue.tag == "reporter":
-                            issue_reporter = issue.get('username').encode('utf-8')
+                            issue_reporter = issue.get('username').lower().encode('utf-8')
                             author_ids[issue_reporter] = 1
                         if issue.tag == "created":
                             row = {'IssueID': issue_key, 'IssueType': issue_type,
@@ -95,7 +95,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
                         if issue.tag  == "comments":
                              for comment in issue:
                                  issue_comment_author = None
-                                 issue_comment_author = comment.get('author').encode('utf-8')
+                                 issue_comment_author = comment.get('author').lower().encode('utf-8')
                                  author_ids[issue_comment_author] = 1
                                  issue_comment_timestamp = comment.get('created')
                                  row = {'IssueID': issue_key, 'IssueType': issue_type,
