@@ -135,6 +135,8 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
 
     # Add a new column with the inferred email addresses to the data frame
     email_df = pd.DataFrame(email_list, columns=('AuthorID', 'AuthorName', 'userEmail'))
+    email_df['AuthorID'] = email_df['AuthorID'].str.lower()
+    comment_authors_df['AuthorID'] = comment_authors_df['AuthorID'].str.lower()
     merged = pd.merge(comment_authors_df, email_df, on='AuthorID')
 
     # ... and store the results as CSV file (TODO: Place this in the codeface DB)
