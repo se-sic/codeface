@@ -498,18 +498,22 @@ do.commit.analysis <- function(resdir, graphdir, conf) {
       dat <- dat[dat$variable!="NumTags",]
     }
 
-    if (has.rcs) {
-      g <- ggplot(data=dat, aes(x=revision, y=value, colour=inRC))
+    if (any(is.na(dat$value))) {
+      logdevinfo("Skip ts_commits plot due to missing values.")
     } else {
-      g <- ggplot(data=dat, aes(x=revision, y=value))
-    }
-    g <- g + geom_boxplot(fill="NA") + scale_y_log10() +
-        facet_wrap(~variable, scales="free") + xlab("Revision") +
-        ylab("Value (log. scale)") +
-        scale_colour_discrete("Release\nCandidate") +
-        ggtitle(paste("Commit time series for year", year))
-    ggsave(file.path(graphdir, paste("ts_commits_", year, ".pdf", sep="")),
-           g, width=12, height=8)
+      if (has.rcs) {
+        g <- ggplot(data=dat, aes(x=revision, y=value, colour=inRC))
+      } else {
+        g <- ggplot(data=dat, aes(x=revision, y=value))
+      }
+      g <- g + geom_boxplot(fill="NA") + scale_y_log10() +
+          facet_wrap(~variable, scales="free") + xlab("Revision") +
+          ylab("Value (log. scale)") +
+          scale_colour_discrete("Release\nCandidate") +
+          ggtitle(paste("Commit time series for year", year))
+      ggsave(file.path(graphdir, paste("ts_commits_", year, ".pdf", sep="")),
+             g, width=12, height=8)
+      }
     })
 }
 
