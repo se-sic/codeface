@@ -221,7 +221,7 @@ def handle_sigint_silent(signal, frame):
     # Since we want to terminate worker threads with prejudice,
     # we use os._exit, which directly terminates the process.
     # otherwise the worker try/catch will also catch the SystemExit
-    os.exit_(-1)
+    os._exit(-1)
 
 def handle_sigterm(signal, frame):
     # Since we want to terminate worker threads with prejudice,
