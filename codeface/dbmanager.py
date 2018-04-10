@@ -90,6 +90,11 @@ class DBManager:
                     if dbe.args[0] == 1213:  # Deadlock! retry...
                         log.warning("Recoverable deadlock in MySQL - retrying " \
                                     "(attempt {}).".format(retryCount))
+                    elif dbe.args[0] == 2003:  # Can't connect to MySQL server
+                        log.warning("Can't connect to MySQL server - retrying " \
+                                    "(attempt {}).".format(retryCount))
+                        time.sleep(60)
+                        self.con.ping(True)
                     elif dbe.args[0] == 2006:  # Server gone away...
                         log.warning("MySQL Server gone away, trying to reconnect " \
                                     "(attempt {}).".format(retryCount))
