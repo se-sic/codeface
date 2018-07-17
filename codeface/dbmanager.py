@@ -226,10 +226,15 @@ class DBManager:
                             format(tag, type, self.cur.rowcount))
         return self.doFetchAll()[0][0]
 
-    def getCommitId(self, projectId, commitHash):
-        self.doExec("SELECT id FROM commit" +
-                    " WHERE commitHash=%s AND projectId=%s"
-                    , (commitHash, projectId))
+    def getCommitId(self, projectId, commitHash, releaseRangeID=None):
+        stmt = "SELECT id FROM commit WHERE commitHash=%s AND projectId=%s"
+        args = (commitHash, projectId)
+
+        if (releaseRangeID):
+            stmt += " AND releaseRangeId=%s"
+            args += (releaseRangeID, )
+
+        self.doExec(stmt, args)
         if self.cur.rowcount == 0:
             raise Exception("Commit from project {} not found!".
                             format(projectId))

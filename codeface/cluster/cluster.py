@@ -1196,7 +1196,7 @@ def writeIDwithCmtStats2File(id_mgr, outdir, releaseRangeID, dbm, conf):
 
 
 def writeDependsToDB(
-        logical_depends, cmtlist, dbm, conf, entity_type=("Function", ),
+        logical_depends, cmtlist, releaseRangeID, dbm, conf, entity_type=("Function", ),
         get_entity_source_code=None):
     '''
     Write logical dependency data to database
@@ -1226,7 +1226,7 @@ def writeDependsToDB(
             # if there are dependencies for the current commit, add them to the rows to be added to DB
             if (cmt.id in logical_depends_current) & (logical_depends_current is not None):
                 # get ID for current commit
-                key = dbm.getCommitId(projectID, cmt.id)
+                key = dbm.getCommitId(projectID, cmt.id, releaseRangeID)
 
                 # get the commit dependencies for current commit
                 depends_list = logical_depends_current[cmt.id]
@@ -1384,7 +1384,7 @@ def emitStatisticalData(cmtlist, id_mgr, logical_depends, outdir, releaseRangeID
     writeAdjMatrixMaxWeight2File(id_mgr, outdir, conf)
 
     if logical_depends is not None:
-        writeDependsToDB(logical_depends, cmtlist, dbm, conf, entity_type,
+        writeDependsToDB(logical_depends, cmtlist, releaseRangeID, dbm, conf, entity_type,
                          get_entity_source_code)
 
     return None
