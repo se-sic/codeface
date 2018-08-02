@@ -64,6 +64,7 @@ library(devtools)
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/slam/slam_0.1-40.tar.gz")
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/arules/arules_1.5-0.tar.gz")
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/proxy/proxy_0.4-16.tar.gz")
+devtools::install_url("https://cran.r-project.org/src/contrib/Archive/tm/tm_0.7-1.tar.gz")
 
 ## install from BioConductor
 p <- filter.installed.packages(c("BiRewire", "graph"))
