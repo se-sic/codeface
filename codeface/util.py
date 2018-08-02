@@ -541,17 +541,16 @@ def encode_as_utf8(string):
     :return: the UTF-8 encoded string of type str
     """
 
-    # if we have a unicode string, it's easy to encode as UTF-8
-    if isinstance(string, unicode):
-        return string.encode("utf-8")  # TODO: this line might be problematic, possibly no control character escaping!
+    # if we have a string, we transform it to unicode
+    if isinstance(string, str):
+        string = unicode(string, "unicode-escape", errors="replace")
 
-    ## maybe not a string at all
-    if not isinstance(string, str):
+    ## maybe not a string/unicode at all, return rightaway
+    if not isinstance(string, unicode):
         return string
 
     # convert to real unicode-utf8 encoded string, fix_text ensures proper encoding
-    new_string = unicode(string, "unicode-escape", errors="replace")
-    new_string = fix_encoding(new_string)
+    new_string = fix_encoding(string)
 
     # remove unicode characters from "Specials" block
     # see: https://www.compart.com/en/unicode/block/U+FFF0
