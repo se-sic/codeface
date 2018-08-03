@@ -25,6 +25,7 @@ import shutil
 import signal
 import sys
 import traceback
+import unicodedata
 from collections import OrderedDict, namedtuple
 from glob import glob
 from math import sqrt
@@ -37,6 +38,7 @@ from time import sleep
 from threading import enumerate as threading_enumerate
 from Queue import Empty
 from datetime import timedelta, datetime
+from ftfy import fix_encoding
 
 # Represents a job submitted to the batch pool.
 BatchJobTuple = namedtuple('BatchJobTuple', ['id', 'func', 'args', 'kwargs',
@@ -532,36 +534,46 @@ def encode_as_utf8(string):
     Encode the given string properly in UTF-8,
     independent from its internal representation (str or unicode).
 
-    This function removes any four-byte-encoded unicode characters and replaces them
-    with ":4bytereplacement:" as they do not work with 'utf8' encoding of MySQL.
+    This function removes any control characters and four-byte-encoded unicode characters and replaces them
+    with " ". (Four-byte-encoded unicode characters do not work with 'utf8' encoding of MySQL.)
 
     :param string: any string
     :return: the UTF-8 encoded string of type str
     """
 
-    # if we have a unicode string, it's easy to encode as UTF-8
-    if isinstance(string, unicode):
-        return string.encode("utf-8")
+    # if we have a string, we transform it to unicode
+    if isinstance(string, str):
+        string = unicode(string, "unicode-escape", errors="replace")
 
-    ## maybe not a string at all
-    if not isinstance(string, str):
+    ## maybe not a string/unicode at all, return rightaway
+    if not isinstance(string, unicode):
         return string
 
-    # convert to real unicode-utf8 encoded string
-    string = unicode(string, "unicode-escape", errors="replace").encode("utf-8")
+    # convert to real unicode-utf8 encoded string, fix_text ensures proper encoding
+    new_string = fix_encoding(string)
 
-    # replace any 4-byte characters with four_byte_replacement
+    # remove unicode characters from "Specials" block
+    # see: https://www.compart.com/en/unicode/block/U+FFF0
+    new_string = re.sub(r"\\ufff.", " ", new_string.encode("unicode-escape"))
+
+    # remove all kinds of control characters and emojis
+    # see: https://www.fileformat.info/info/unicode/category/index.htm
+    new_string = u"".join(ch if unicodedata.category(ch)[0] != "C" else " " for ch in new_string.decode("unicode-escape"))
+
+    new_string = new_string.encode("utf-8")
+
+    # replace any 4-byte characters with a single space (previously: four_byte_replacement)
     try:
         # UCS-4 build
-        four_byte_regex = re.compile(u'[\U00010000-\U0010ffff]')
+        four_byte_regex = re.compile(u"[\U00010000-\U0010ffff]")
     except re.error:
         # UCS-2 build
-        four_byte_regex = re.compile(u'[\uD800-\uDBFF][\uDC00-\uDFFF]')
+        four_byte_regex = re.compile(u"[\uD800-\uDBFF][\uDC00-\uDFFF]")
 
-    four_byte_replacement = r":4bytereplacement:"
-    string = four_byte_regex.sub(four_byte_replacement, string.decode("utf-8")).encode("utf-8")
+    four_byte_replacement = r" "  # r":4bytereplacement:"
+    new_string = four_byte_regex.sub(four_byte_replacement, new_string.decode("utf-8")).encode("utf-8")
 
-    return string
+    return str(new_string)
 
 
 def encode_items_as_utf8(items):
