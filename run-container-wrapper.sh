@@ -8,7 +8,7 @@ unset KRB5CCNAME
 export HOME=$(mktemp -d --tmpdir=/tmp)
 
 # open virtualenv
-source "${PATH_ROOT}/virtualenv3-debian/bin/activate"
+source "${PATH_ROOT}/virtualenv3/bin/activate"
 
 
 # DEBUG INFORMATION

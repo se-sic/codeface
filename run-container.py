@@ -49,7 +49,7 @@ PATH_CODEFACE_EXTRACTION = os.path.join(PATH_ROOT, "codeface-extraction")
 PATH_GITHUBWRAPPER =  os.path.join(PATH_ROOT, "GitHubWrapper")
 
 # benchbuild + uchroot container
-PATH_BENCHBUILD = os.path.join(PATH_ROOT, "benchbuild-debian")
+PATH_BENCHBUILD = os.path.join(PATH_ROOT, "benchbuild")
 PATH_CONTAINER = os.path.join(PATH_ROOT, "container")
 #PATH_CONTAINER_CODEFACE = os.path.join(PATH_CONTAINER, "2016-11-03_codeface.tar.bz2")
 #PATH_CONTAINER_CODEFACE = os.path.join(PATH_CONTAINER, "2018-03-24_codeface.tar.bz2")
@@ -74,7 +74,7 @@ CH_MAIL = "{}@fim.uni-passau.de".format(USER)
 # job parameters
 CH_SLURM_JOB_NAME = "codeface"
 CH_SLURM_PARAMS = ["-J", CH_SLURM_JOB_NAME, "--get-user-env"]
-CH_SBATCH = os.path.join(PATH_ANALYSIS, "run-container-wrapper-tmp.sh")
+CH_SBATCH = os.path.join(PATH_ANALYSIS, "run-container-wrapper.sh")
 
 # set job dependency to singleton (last of user's jobs)
 CH_SLURM_DEPENDENCY = ["--dependency", "singleton"]  # run after all jobs of user
