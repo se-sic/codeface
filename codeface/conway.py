@@ -15,6 +15,7 @@
 #
 # Copyright 2016, 2017 by Wolfgang Mauerer <wolfgang.mauerer@oth-regensburg.de>
 # Copyright 2016 by Carlos Andrade <carlos.andrade@acm.org>
+# Copyright 2019 by Anselm Fehnker <fehnker@fim.uni-passau.de>
 # All Rights Reserved.
 
 # Data gathering and preparation steps for Conway analysis
@@ -56,6 +57,11 @@ def get_email_from_jira(userid, jira):
         email = ''.join(email)
         return email
     user = jira.user(id=userid, expand=["name", "emailAddress", "displayName"])
+
+    # verify that attribute emailAddress exists
+    if not hasattr(user, "emailAddress"):
+       user.emailAddress = ""
+
     user_data = (user.name.lower(), fix_email_format(user.emailAddress), unicode(user.displayName))
     return user_data
 
