@@ -62,9 +62,8 @@ PATH_CONTAINER_CODEFACE = os.path.join(PATH_CONTAINER, "2018-08-02_codeface.tar.
 #
 
 # node
-#CH_SLURM_ENV = ["-p", "anywhere", "-A", "anywhere", "--exclusive", "--mem=0", "--qos=verylong", "--time=0", "--constraint=zeus|chimaira|pontipine|cayman"]
+#CH_SLURM_ENV = ["-p", "anywhere", "-A", "anywhere", "--exclusive", "--mem=0", "--qos=verylong", "--time=0", "--constraint=zeus|chimaira|pontipine|cayman|sphinx"]
 #CH_SLURM_ENV = ["-p", "anywhere", "-A", "anywhere", "--exclusive", "--mem=0", "--constraint=zeus|chimaira"]
-#CH_SLURM_ENV = ["-p", "sphinx", "-A", "sphinx", "--exclusive"]
 CH_SLURM_ENV = ["-p", "anywhere", "-A", "anywhere", "--exclusive", "--mem=0", "--constraint=zeus|pontipine"]
 
 # notification email
