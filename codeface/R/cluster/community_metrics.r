@@ -28,6 +28,7 @@ suppressMessages(library(xts))
 source("../dependency_analysis.r", chdir=TRUE)
 source("../network_stream.r", chdir=TRUE)
 source("../developer_classification.r", chdir=TRUE)
+source("community_helpers.r", chdir=TRUE)
 
 edge.weight.to.multi <- function(g) {
   ## Converters an edge weight to multiple edges between the connected nodes
@@ -613,12 +614,12 @@ compute.all.project.trends <- function(con, type, outdir) {
 
 
 compute.project.graph.trends <-
-  function(con, p.id, type, window.size=90, step.size=14) {
+  function(conf, type, window.size=90, step.size=14) {
   project.data <- list()
-  project.data$p.id <- p.id
-  project.data$name <- query.project.name(con, p.id)
-  project.data$analysis.method <- query.project.analysis.method(con, p.id)
-  range.data <- get.cycles.con(con, p.id)
+  project.data$p.id <- conf$pid
+  project.data$name <- query.project.name(conf$con, conf$pid)
+  project.data$analysis.method <- query.project.analysis.method(conf$con, conf$pid)
+  range.data <- get.cycles.con(conf$con, conf$pid)
   start.date <- min(range.data$date.start)
   end.date <- max(range.data$date.end)
 
@@ -651,10 +652,11 @@ compute.project.graph.trends <-
       p.ranges.chunk <- p.ranges[chunk,]
       ## Get graph and additional data for each revision
       if(type == "developer") {
-        edgelist.stream <- build.dev.net.stream(con, p.id, "Function", p.ranges.chunk)
+          conf$type <- "function"
+          edgelist.stream <- build.dev.net.stream(conf, p.ranges.chunk)
       }
 
-      revision.data <-
+        revision.data <-
         apply(p.ranges.chunk, 1,
               function(r) {
                 res <- list()
@@ -677,9 +679,7 @@ compute.project.graph.trends <-
                 }
                 else if (type == "co-change") {
                   window.start <- ymd(start.date) - ddays(180)
-                  edgelist <- get.co.change.edgelist(con, p.id,
-                                                     window.start,
-                                                     end.date)
+                  edgelist <- get.co.change.edgelist(conf, window.start, end.date)
                   if (!empty(edgelist)) {
                     v.id <- unique(unlist(as.list(edgelist[, c("X1", "X2")])))
                     res$v.global.ids <- v.id
@@ -754,7 +754,7 @@ compute.project.graph.trends <-
 
                 return(res)})
 
-      revision.data[sapply(revision.data, is.null)] <- NULL
+        revision.data[sapply(revision.data, is.null)] <- NULL
 
       ## Create igraph object and select communities which are of a minimum size 4
       revision.data <-
@@ -813,15 +813,9 @@ compute.project.graph.trends <-
 
   res <- list(metrics=metrics.df, markov.chains=markov.chains,
               developer.classifications=developer.classifications,
-              class.edge.probs=e$developer.edge.probs)
+              class.edge.probs=e$developer.edge.probs,
+              developer.class.list=e$developer.classes[["4"]])
 
-  degree.df <- subset(metrics.df, metric=="v.degree")
-  dev.degree.df <- split(degree.df, degree.df$g.id)
-  t <- lapply(dev.degree.df,
-              function(dev.df) {
-                ts <- xts(dev.df$value, as.Date(dev.df$cycle))
-                ts <- 1 + ts
-                mean(ts/lag(ts, +1) -1, na.rm=T)})
   return(res)
 }
 
@@ -876,17 +870,17 @@ plot.box <- function(project.df, feature, outdir) {
     file.name <- paste(file.dir, "/", feature, ".png",sep="")
     ggsave(file.name, p1, height=8, width=20)
 
-    ## Adjusted box plots for skewed data
-    file.name <- paste(file.dir, "/", feature, "_adjusted.pdf", sep="")
+    ## ## Adjusted box plots for skewed data
+    ## file.name <- paste(file.dir, "/", feature, "_adjusted.pdf", sep="")
 
-    pdf(file.name)
+    ## pdf(file.name)
 
-    adjbox(value ~ cycle, data=project.df, outline=FALSE)
+    ## adjbox(value ~ cycle, data=project.df, outline=FALSE)
 
-    ## x axis with ticks but without labels
-    axis(1, labels = FALSE)
+    ## ## x axis with ticks but without labels
+    ## axis(1, labels = FALSE)
 
-    dev.off()
+    ## dev.off()
 
     if(feature %in% c('page.rank','v.degree')) {
       file.name <- paste(file.dir, '/', feature, "_distribution.pdf", sep="")
