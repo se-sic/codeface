@@ -66,6 +66,7 @@ devtools::install_url("https://cran.r-project.org/src/contrib/Archive/arules/aru
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/proxy/proxy_0.4-16.tar.gz")
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/tm/tm_0.7-1.tar.gz")
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/markovchain/markovchain_0.6.9.11.tar.gz")
+devtools::install_github("nathan-russell/hashmap")
 
 ## install from BioConductor
 p <- filter.installed.packages(c("BiRewire", "graph"))
