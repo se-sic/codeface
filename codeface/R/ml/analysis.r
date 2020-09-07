@@ -354,6 +354,16 @@ check.corpus.precon <- function(corp.base) {
       author <- paste(name, email)
     }
 
+    ## Check if email address is <noreply@github.com>. Then add name prefix to e-mail
+    ## address to avoid combining all that persons having the same e-mail address.
+    if (grepl("<noreply@github.com>", author)) {
+      r <- regexpr("<.+>", author, TRUE)
+      email <- substr(author, r, r + attr(r, "match.length") - 1)
+      name <- sub(email, "", author, fixed=TRUE)
+      email <- paste0("<", gsub(" ","\\.", name), "noreply@github.com>")
+      author <- paste(name, email)
+    }
+
     ## return new author string
     return(author)
   }
