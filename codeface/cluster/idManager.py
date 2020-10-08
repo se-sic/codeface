@@ -24,7 +24,7 @@ import urllib
 import json
 import string
 import random
-
+from ..util import encode_as_utf8
 
 class idManager:
     """Provide unique IDs for developers.
@@ -110,6 +110,7 @@ class idManager:
     def _query_user_id(self, name, email):
         """Query the ID database for a contributor ID"""
 
+        name = encode_as_utf8(name)
         params = urllib.urlencode({'projectID': self._projectID,
                                    'name': name,
                                    'email': email})
