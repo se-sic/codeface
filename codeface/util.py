@@ -541,9 +541,12 @@ def encode_as_utf8(string):
     :return: the UTF-8 encoded string of type str
     """
 
-    # if we have a string, we transform it to unicode
-    if isinstance(string, str):
-        string = unicode(string, "unicode-escape", errors="replace")
+    try:
+        string = string.decode("utf-8")
+    except:
+        # if we have a string, we transform it to unicode
+        if isinstance(string, str):
+            string = unicode(string, "unicode-escape", errors="replace")
 
     ## maybe not a string/unicode at all, return rightaway
     if not isinstance(string, unicode):
