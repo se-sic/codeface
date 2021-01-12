@@ -24,6 +24,7 @@ import urllib
 import json
 import string
 import random
+import time
 from ..util import encode_as_utf8
 
 class idManager:
@@ -119,8 +120,26 @@ class idManager:
             self._conn.request("POST", "/post_user_id", params, self.headers)
             res = self._conn.getresponse()
         except:
-            log.exception("Could not reach ID service. Is the server running?\n")
-            raise
+            retryCount = 0
+            successful = False
+            while (retryCount <= 10 and not successful):
+                log.warning("Could not reach ID service. Try to reconnect " \
+                            "(attempt {}).".format(retryCount));
+                self._conn.close()
+                self._conn = httplib.HTTPConnection(self._idMgrServer, self._idMgrPort)
+                time.sleep(60)
+                #self._conn.ping(True)
+                try:
+                    self._conn.request("POST", "/post_user_id", params, self.headers)
+                    res = self._conn.getresponse()
+                    successful = True
+                except:
+                    if retryCount < 10:
+                        retryCount += 1
+                    else:
+                        retryCount += 1
+                        log.exception("Could not reach ID service. Is the server running?\n")
+                        raise
 
         # TODO: We should handle errors by throwing an exception instead
         # of silently ignoring them
@@ -161,8 +180,28 @@ class idManager:
             self._conn.request("GET", "/getUser/{}".format(person_id), headers=self.headers)
             res = self._conn.getresponse()
         except:
-            log.exception("Could not reach ID service. Is the server running?\n")
-            raise
+            self._conn.close()
+            self._conn = httplib.HTTPConnection(self._idMgrServer, self._idMgrPort)
+            retryCount = 0
+            successful = False
+            while (retryCount <= 10 and not successful):
+                log.warning("Could not reach ID service. Try to reconnect " \
+                            "(attempt {}).".format(retryCount));
+                self._conn.close()
+                self._conn = httplib.HTTPConnection(self._idMgrServer, self._idMgrPort)
+                time.sleep(60)
+                #self._conn.ping(True)
+                try:
+                    self._conn.request("GET", "/getUser/{}".format(person_id), headers=self.headers)
+                    res = self._conn.getresponse()
+                    successful = True
+                except:
+                    if retryCount < 10:
+                        retryCount += 1
+                    else:
+                        retryCount += 1
+                        log.exception("Could not reach ID service. Is the server running?\n")
+                        raise
 
         result = res.read()
         jsond = json.loads(result)[0]
