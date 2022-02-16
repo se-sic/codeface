@@ -1394,8 +1394,9 @@ class gitVCS (VCS):
         #  structures tags, we may need more languages specific assignments
         #  in addition to java and c# files, use "ctags --list-kinds" to
         # see all tag meanings per language
+        # Find more information here: https://github.com/universal-ctags/ctags/tree/master/parsers
         fileExt = os.path.splitext(src_file)[1].lower()
-        if fileExt in (".java", ".j", ".jav", ".cs", ".js"):
+        if fileExt in (".java", ".j", ".jav", ".cs", ".js", ".es6", ".jsm", ".ts"):
             structures.append("m") # methods
             structures.append("i") # interface
         elif fileExt in (".php"):
@@ -1403,6 +1404,16 @@ class gitVCS (VCS):
             structures.append("j") # functions
         elif fileExt in (".py"):
             structures.append("m") # class members
+        elif fileExt in (".go"):
+            structures.append("n") # interface
+            structures.append("m") # methods
+            structures.append("r") # constructor
+        elif fileExt in (".rs", ".ru"):
+            structures.append("n") # module
+            structures.append("i") # interface
+            structures.append("P") # method
+        elif fileExt in (".lisp", ".lsp"):
+            structures.append("M") # module
 
         while(tags.next(entry)):
             if entry['kind'] in structures:
@@ -1455,7 +1466,10 @@ class gitVCS (VCS):
         if (fileExt in ['.java', '.cs', '.d', '.php', '.php4', '.php5',
                         '.inc', '.phtml', '.m', '.mm', '.py', '.f',
                         '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl',
-                        '.cpp', '.cxx', '.c', '.cc']):
+                        '.cpp', '.cxx', '.c', '.cc',
+                        ".ru", ".rs", ".go", ".r", ".rscript", ".vue", # ".hs",
+                        ".pl", ".pm", ".swift", ".lua", ".scala", ".sc", ".lisp", ".lsp", #".feature",
+                        ".groovy", ".gy", ".gv", ".gvy", ".gsh", ".kt", ".kts", ".ktm"]):
             func_lines, src_elems = self._parseSrcFileDoxygen(srcFile.name)
             file_commit.setSrcElems(src_elems)
             file_commit.artefact_line_range = True
@@ -1537,7 +1551,10 @@ class gitVCS (VCS):
         fileExt = (".c", ".cc", ".cpp", ".cxx", ".cs", ".asmx", ".m", ".mm",
                    ".js", ".coffee", ".java", ".j", ".jav", ".php",".py", ".sh", ".rb",
                    '.d', '.php4', '.php5', '.inc', '.phtml', '.m', '.mm',
-                   '.f', '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl', 'sql')
+                   '.f', '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl', 'sql',
+                   ".ru", ".rs", ".ts", ".go", ".dart", ".r", ".rscript", ".vue", # ".hs",
+                   ".pl", ".pm", ".swift", ".lua", ".scala", ".sc", ".lisp", ".lsp", # ".feature",
+                   ".groovy", ".gy", ".gv", ".gvy", ".gsh", ".kt", ".kts", ".ktm", ".es6", ".jsm")
 
         fileNames = [fileName for fileName in all_files if
                      fileName.lower().endswith(fileExt)]
