@@ -1372,7 +1372,7 @@ class gitVCS (VCS):
         tag_file = tempfile.NamedTemporaryFile()
 
         # run ctags analysis on the file to create a tags file
-        cmd = "ctags-exuberant -f {0} --fields=nk {1}".format(tag_file.name,
+        cmd = "ctags-universal -f {0} --fields=nk {1}".format(tag_file.name,
                                                               src_file).split()
         output = execute_command(cmd).splitlines()
 

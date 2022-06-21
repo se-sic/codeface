@@ -378,20 +378,20 @@ def generate_reports(start_rev, end_rev, range_resdir):
 
 def check4ctags():
     # check if the appropriate ctags is installed on the system
-    prog_name    = 'Exuberant Ctags'
-    prog_version = 'Exuberant Ctags 5.9~svn20110310'
-    cmd = "ctags-exuberant --version".split()
+    prog_name    = 'Universal Ctags'
+    prog_version = 'Universal Ctags 5.9.0, Copyright (C) 2015 Universal Ctags Team'
+    cmd = "ctags-universal --version".split()
 
     res = execute_command(cmd, None)
 
     if not(res.startswith(prog_name)):
         log.error("program '{0}' does not exist".format(prog_name))
-        raise Exception("ctags-exuberant not found")
+        raise Exception("ctags-universal not found")
 
     if not(res.startswith(prog_version)):
         # TODO: change this to use standard mechanism for error logging
         log.error("Ctags version '{0}' not found".format(prog_version))
-        raise Exception("Incompatible ctags-exuberant version")
+        raise Exception("Incompatible ctags-universal version")
 
 
 def check4cppstats():

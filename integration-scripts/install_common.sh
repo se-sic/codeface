@@ -9,14 +9,12 @@ echo "mysql-server mysql-server/root_password_again password" | sudo debconf-set
 
 sudo DEBIAN_FRONTEND=noninteractive apt-get -qqy install sinntp texlive default-jdk \
 	mysql-common mysql-client libgraphviz-dev libarchive13 libhunspell-dev \
-	mysql-server python-dev exuberant-ctags nodejs git subversion libxslt1-dev \
+	mysql-server python-dev universal-ctags nodejs git subversion libxslt1-dev \
 	sloccount graphviz doxygen libxml2-dev libcurl4-openssl-dev \
 	libmysqlclient-dev libcairo2-dev libxt-dev libcairo2-dev libmysqlclient-dev \
 	astyle xsltproc libxml2 libxml2-dev python build-essential libyaml-dev \
-	gfortran python-setuptools python-pkg-resources python-matplotlib \
-	python-libxml2 python-lxml python-notify python-lxml gcc python-pip \
 	libxml2-dev libcurl4-openssl-dev xorg-dev libx11-dev libgles2-mesa-dev \
-	libglu1-mesa-dev libxt-dev libpoppler-dev libpoppler-glib-dev python-mock \
+	gfortran libglu1-mesa-dev libxt-dev libpoppler-dev libpoppler-glib-dev python-mock \
 	libapparmor-dev libpoppler-cpp-dev
 
 # Make sure that the mysql socket file is available as /var/run/mysqld/mysqld.sock
