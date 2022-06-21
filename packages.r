@@ -61,18 +61,24 @@ if (is.na(num.cores)) {
 ## install potentially unresolvable dependencies
 install.packages("devtools")
 library(devtools)
+devtools::install_url("https://cran.r-project.org/src/contrib/Archive/BH/BH_1.75.0-0.tar.gz")
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/slam/slam_0.1-40.tar.gz")
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/arules/arules_1.5-0.tar.gz")
 devtools::install_url("https://cran.r-project.org/src/contrib/Archive/proxy/proxy_0.4-16.tar.gz")
-devtools::install_url("https://cran.r-project.org/src/contrib/Archive/tm/tm_0.7-1.tar.gz")
-devtools::install_url("https://cran.r-project.org/src/contrib/Archive/markovchain/markovchain_0.6.9.11.tar.gz")
+#devtools::install_url("https://cran.r-project.org/src/contrib/Archive/tm/tm_0.7-1.tar.gz")
+devtools::install_url("https://cran.r-project.org/src/contrib/Archive/logging/logging_0.8-104.tar.gz")
+#devtools::install_url("https://cran.r-project.org/src/contrib/Archive/markovchain/markovchain_0.6.9.11.tar.gz")
+devtools::install_url("https://cran.r-project.org/src/contrib/Archive/rjson/rjson_0.2.20.tar.gz")
 devtools::install_github("nathan-russell/hashmap")
 
 ## install from BioConductor
-p <- filter.installed.packages(c("BiRewire", "graph"))
+p <- filter.installed.packages(c("BiRewire", "BiocGenerics", "graph"))
 if(length(p) > 0) {
-    source("http://bioconductor.org/biocLite.R")
-    biocLite(p)
+
+    #source("http://bioconductor.org/biocLite.R")
+    #biocLite(p)
+    install.packages("BiocManager")
+    BiocManager::install(p)
 }
 
 ## install from CRAN
@@ -95,5 +101,6 @@ reinstall.package.from.github("shinyGridster", "wch/shiny-gridster")
 reinstall.package.from.github("shinybootstrap2", "rstudio/shinybootstrap2")
 
 ## Bioconductor packages
-source("https://bioconductor.org/biocLite.R")
-biocLite("Rgraphviz")
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("Rgraphviz")
+BiocManager::install("Rgraphviz")
