@@ -1866,7 +1866,19 @@ def performAnalysis(conf, dbm, dbfilename, git_repo, revrange, subsys_descr,
 
     log.devinfo("Reading from data base {0}...".format(dbfilename))
     git = readDB(dbfilename)
-    cmtlist = git.extractCommitData("__main__")
+
+    if reuse_db:
+        log.devinfo("Extract commit data again...")
+        git.extractCommitData(link_type=link_type, reuse_shelved_objects=False)
+        log.devinfo("Shelving the new VCS object")
+        output = open(dbfilename, 'wb')
+        pickle.dump(git, output, -1)
+        output.close()
+        log.devinfo("Finished shelving the new VCS object")
+        cmtlist = git.extractCommitData("__main__", reuse_shelved_objects=False)
+    else:
+        cmtlist = git.extractCommitData("__main__")
+
     cmtdict = git.getCommitDict()
 
     #---------------------------------

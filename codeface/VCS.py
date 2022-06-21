@@ -1029,7 +1029,7 @@ class gitVCS (VCS):
                 for logstring in reversed(clist)]
 
 
-    def extractCommitData(self, subsys="__main__", link_type=None):
+    def extractCommitData(self, subsys="__main__", link_type=None, reuse_shelved_objects=True):
         if not(self._subsysIsValid(subsys)):
             log.critical("Subsys specification invalid: {0}\n".format(subsys))
             raise Error("Invalid subsystem specification.")
@@ -1037,7 +1037,7 @@ class gitVCS (VCS):
         # If we've already computed the result, make use of it
         # (shelved objects can therefore provide a significant
         # performance advantage)
-        if self._commit_list_dict:
+        if reuse_shelved_objects and self._commit_list_dict:
             log.devinfo("Using cached data to extract commit information")
             return self._commit_list_dict[subsys]
 
