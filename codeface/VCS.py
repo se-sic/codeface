@@ -1396,9 +1396,14 @@ class gitVCS (VCS):
         # see all tag meanings per language
         # Find more information here: https://github.com/universal-ctags/ctags/tree/master/parsers
         fileExt = os.path.splitext(src_file)[1].lower()
-        if fileExt in (".java", ".j", ".jav", ".cs", ".js", ".es6", ".jsm", ".ts"):
+        if fileExt in (".java", ".j", ".jav", ".cs", ".js", ".es6", ".jsm", ".ts", ".dart", ".scala", ".sc"):
             structures.append("m") # methods
             structures.append("i") # interface
+        elif fileExt in (".go"):
+            structures.append("i") # interfaces
+        elif fileExt in (".rb"):
+            structures.append("m") # modules
+            structures.append("S") # singleton method
         elif fileExt in (".php"):
             structures.append("i") # interface
             structures.append("j") # functions
@@ -1412,8 +1417,10 @@ class gitVCS (VCS):
             structures.append("n") # module
             structures.append("i") # interface
             structures.append("P") # method
-        elif fileExt in (".lisp", ".lsp"):
+        elif fileExt in (".lisp", ".lsp", ".pl"):
             structures.append("M") # module
+        elif fileExt in (".r", ".rscript"):
+            structures = ["f", "m"]
 
         while(tags.next(entry)):
             if entry['kind'] in structures:
@@ -1467,7 +1474,7 @@ class gitVCS (VCS):
                         '.inc', '.phtml', '.m', '.mm', '.py', '.f',
                         '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl',
                         '.cpp', '.cxx', '.c', '.cc',
-                        ".ru", ".rs", ".go", ".r", ".rscript", ".vue", # ".hs",
+                        ".go", ".vue", # ".hs",
                         ".pl", ".pm", ".swift", ".lua", ".scala", ".sc", ".lisp", ".lsp", #".feature",
                         ".groovy", ".gy", ".gv", ".gvy", ".gsh", ".kt", ".kts", ".ktm"]):
             func_lines, src_elems = self._parseSrcFileDoxygen(srcFile.name)
