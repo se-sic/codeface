@@ -45,6 +45,18 @@ class DBManager:
     """This class provides an interface to the codeface sql database."""
 
     def __init__(self, conf):
+
+        self.conf = conf
+        self.__openConnection(conf)
+
+        # max_packet_size = 1024 * 1024 * 512
+        # self.doExec("SET GLOBAL max_allowed_packet=%s", (max_packet_size,))
+
+    def __del__(self):
+        if self.con != None:
+            self.con.close()
+
+    def __openConnection(self, conf):
         try:
             self.con = None
             self.con = mdb.Connection(host=conf["dbhost"],
@@ -54,6 +66,7 @@ class DBManager:
                                       db=conf["dbname"],
                                       charset="utf8",
                                       use_unicode=True)
+            self.cur = self.con.cursor()
             log.debug(
                 "Establishing MySQL connection to "
                 "{c[dbuser]}@{c[dbhost]}:{c[dbport]}, DB '{c[dbname]}'"
@@ -65,14 +78,7 @@ class DBManager:
                 ": {e[1]} ({e[0]})"
                 "".format(c=conf, e=e.args))
             raise
-        self.cur = self.con.cursor()
 
-        max_packet_size = 1024 * 1024 * 512
-        self.doExec("SET GLOBAL max_allowed_packet=%s", (max_packet_size,))
-
-    def __del__(self):
-        if self.con != None:
-            self.con.close()
 
     def doExec(self, stmt, args=None):
         with _log_db_error(stmt, args):
@@ -94,17 +100,29 @@ class DBManager:
                         log.warning("Can't connect to MySQL server - retrying " \
                                     "(attempt {}).".format(retryCount))
                         time.sleep(60)
-                        self.con.ping(True)
+                        log.warning("Try opening new connection")
+                        self.con.close()
+                        log.warning("Connection successfully closed")
+                        self.__openConnection(self.conf)
+                        log.warning("Opening new connection successful")
                     elif dbe.args[0] == 2006:  # Server gone away...
                         log.warning("MySQL Server gone away, trying to reconnect " \
                                     "(attempt {}).".format(retryCount))
                         time.sleep(60)
-                        self.con.ping(True)
+                        log.warning("Try opening new connection")
+                        self.con.close()
+                        log.warning("Connection successfully closed")
+                        self.__openConnection(self.conf)
+                        log.warning("Opening new connection successful")
                     elif dbe.args[0] == 2013 or dbe.args[0] == 1053:  # Lost connection to MySQL server during query | Server shutdown in progress
                         log.warning("Lost connection to MySQL server during query, " \
                                     "trying to reconnect (attempt {}).".format(retryCount))
                         time.sleep(60)
-                        self.con.ping(True)
+                        log.warning("Try opening new connection")
+                        self.con.close()
+                        log.warning("Connection successfully closed")
+                        self.__openConnection(self.conf)
+                        log.warning("Opening new connection successful")
                     elif dbe.args[0] == 1153:  # Got a packet bigger than 'max_allowed_packet' bytes
                         log.warning("Sent a too big packet ({lnos} lines), retrying with smaller packets.".format(
                             lnos=len(args)))
