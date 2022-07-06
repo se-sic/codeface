@@ -804,8 +804,8 @@ class gitVCS (VCS):
 
             # Check if this is a genuine empty commit
             # Since the commit message is indented by 4 spaces
-            # we check if the last line of the commit still starts this way.
-            if not matched and msg[-1].startswith("    "):
+            # we check if the last (non-empty) line of the commit still starts this way.
+            if not matched and (msg[-1].startswith("    ") or (not msg[-1] and msg[-2].startswith("    "))):
                 log.devinfo("Empty commit. Commit <id {}> is: '{}'".
                             format(cmt.id, msg))
                 matched = True
