@@ -1346,8 +1346,13 @@ class gitVCS (VCS):
             start = int(elem['bodystart']) - 1
             end = int(elem['bodyend']) - 1
             name = elem['name']
-            f_lines = {line_num:name  for line_num in range(start, end+1)}
-            func_lines.update(f_lines)
+            # Check if start or end are invalid line numbers. If so, just ignore this function completely.
+            if start == -1 or end == -1:
+                log.warning("doxygen parse error: body (start, end) of function '{0}' in file '{1}' "
+                            "could not be parsed. Function ignored.".format(name, src_file))
+            else:
+                f_lines = {line_num:name  for line_num in range(start, end+1)}
+                func_lines.update(f_lines)
 
         return func_lines, file_analysis.src_elem_list
 
