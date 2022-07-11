@@ -1424,8 +1424,10 @@ class gitVCS (VCS):
             structures.append("P") # method
         elif fileExt in (".lisp", ".lsp", ".pl"):
             structures.append("M") # module
-        elif fileExt in (".r", ".rscript"):
+        elif fileExt in (".r", ".rscript", ".erl"):
             structures = ["f", "m"]
+        elif fileExt in (".ada"):
+            structures = ["y", "r", "p"]
 
         while(tags.next(entry)):
             if entry['kind'] in structures:
@@ -1485,7 +1487,7 @@ class gitVCS (VCS):
             func_lines, src_elems = self._parseSrcFileDoxygen(srcFile.name)
             file_commit.setSrcElems(src_elems)
             file_commit.artefact_line_range = True
-        elif (fileExt in ['sql']):
+        elif (fileExt in ['sql', ".q"]):
             # TODO: Should we use more file extensions?
             func_lines = self._parseSrcFileDB(srcFile.name)
             file_commit.artefact_line_range = True
@@ -1561,9 +1563,9 @@ class gitVCS (VCS):
 
         #filter results to only get implementation files
         fileExt = (".c", ".cc", ".cpp", ".cxx", ".cs", ".asmx", ".m", ".mm",
-                   ".js", ".coffee", ".java", ".j", ".jav", ".php",".py", ".sh", ".rb",
-                   '.d', '.php4', '.php5', '.inc', '.phtml', '.m', '.mm',
-                   '.f', '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl', 'sql',
+                   ".js", ".coffee", ".java", ".j", ".jav", ".php",".py", ".sh", ".ps1", ".rb",
+                   '.d', '.php4', '.php5', '.inc', '.phtml', '.m', '.mm', ".ada", ".erl", ".bb",
+                   '.f', '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl', 'sql', ".q", ".exs", ".ex",
                    ".ru", ".rs", ".ts", ".go", ".dart", ".r", ".rscript", ".vue", # ".hs",
                    ".pl", ".pm", ".swift", ".lua", ".scala", ".sc", ".lisp", ".lsp", # ".feature",
                    ".groovy", ".gy", ".gv", ".gvy", ".gsh", ".kt", ".kts", ".ktm", ".es6", ".jsm")
