@@ -44,6 +44,7 @@ import os
 import bisect
 import ctags
 import tempfile
+#import DBAnalysis
 import sourceAnalysis
 import shutil
 from fileCommit import FileDict
@@ -1359,16 +1360,20 @@ class gitVCS (VCS):
     def _parseSrcFileDB(self, src_file):
         log.debug("Running DB analysis")
 
-        res = DBAnalysis(src_file)
-        # Get src element bounds
-        func_lines = {}
-        for elem in res:
-            # Source indices in DB analysis start at 1, convert to zero based values
-            start = int(elem['start']) - 1
-            end = int(elem['end']) - 1
-            name = elem['name']
-            f_lines = {line_num:name  for line_num in range(start, end+1)}
-            func_lines.update(f_lines)
+        try:
+            res = DBAnalysis(src_file)
+            # Get src element bounds
+            func_lines = {}
+            for elem in res:
+                # Source indices in DB analysis start at 1, convert to zero based values
+                start = int(elem['start']) - 1
+                end = int(elem['end']) - 1
+                name = elem['name']
+                f_lines = {line_num:name  for line_num in range(start, end+1)}
+                func_lines.update(f_lines)
+        except:
+            log.warning("Analyzing functions in sql files is not completely implemented in Codeface due to missing imports!")
+            func_lines = {}
 
         return func_lines
 
