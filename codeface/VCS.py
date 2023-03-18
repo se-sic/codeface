@@ -862,14 +862,14 @@ class gitVCS (VCS):
                     # print("About to call " + " ".join(cmd))
                     msg = execute_command(cmd)
                     self._analyseDiffStat(msg, cmt)
-                except UnicodeDecodeError:
+                except UnicodeDecodeError as ude:
                     # Since we work in utf8 (which git returns and
                     # Python is supposed to work with), this exception
                     # seems to stem from a faulty encoding. Just
                     # ignore the commit
                     cmt.diff_info.append((0,0,0))
-                    log.warning("Ignoring commit {} due to unicode error.".
-                            format(pe.id))
+                    log.warning("Ignoring commit {0} due to unicode error.".
+                            format(ude.id))
                 except ParseError as pe:
                     # Since the diff format is very easy to parse,
                     # this most likely stems from a malformed diff
@@ -947,39 +947,48 @@ class gitVCS (VCS):
             if (match):
                 cmt.committer = match.group(1)
 
-        descr = parts[descr_index].split("\n")
+        # Check if the commit actually contains a description
+        if descr_index < len(parts):
 
-        # Check if commit is corrective using key word search of description
-        cmt.checkIfCorrective(descr)
+            descr = parts[descr_index].split("\n")
 
-        # Add commit description to commit object
-        cmt.setDescription(descr)
+            # Check if commit is corrective using key word search of description
+            cmt.checkIfCorrective(descr)
 
-        # Ensure that there are actually sign off tags in the commit message
-        found = False
-        i = 0
-        for line in descr:
-            line = line.lstrip()
-            found = any([prefix.match(line) for prefix in self.signOffPatterns])
+            # Add commit description to commit object
+            cmt.setDescription(descr)
+
+            # Ensure that there are actually sign off tags in the commit message
+            found = False
+            i = 0
+            for line in descr:
+                line = line.lstrip()
+                found = any([prefix.match(line) for prefix in self.signOffPatterns])
+                if found:
+                    break
+                i+=1
+
             if found:
-                break
-            i+=1
+                descr_message = "\n".join(parts[descr_index].
+                                          split("\n \n ")[0:i-1])
+                self._analyseSignedOffs(descr[i:], cmt)
+            else:
+                descr_message = parts[descr_index]
 
-        if found:
-            descr_message = "\n".join(parts[descr_index].
-                                      split("\n \n ")[0:i-1])
-            self._analyseSignedOffs(descr[i:], cmt)
+            # Normalise the commit message
+            final_message = ""
+            for line in descr_message.split("\n"):
+                line = re.sub("^    ", "", line)
+                final_message += line + "\n"
+
+            cmt.commit_msg_info = (len(final_message.split("\n")),
+                                   len(final_message))
         else:
-            descr_message = parts[descr_index]
+            # The commit does not contain a commit message
+            log.warning("The commit {0} does not contain a commit message.".
+                        format(cmt.id))
+            cmt.commit_msg_info = (0,0)
 
-        # Normalise the commit message
-        final_message = ""
-        for line in descr_message.split("\n"):
-            line = re.sub("^    ", "", line)
-            final_message += line + "\n"
-
-        cmt.commit_msg_info = (len(final_message.split("\n")),
-                               len(final_message))
 
     def _analyseSignedOffs(self, msg, cmt):
         """Analyse the Signed-off-part of a commit message."""
