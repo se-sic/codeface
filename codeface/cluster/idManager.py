@@ -94,12 +94,21 @@ class idManager:
 
                 # print "Fixup for addr {0} required -> ({1}/{2})".format(addr, name, email)
             else:
-                # In this case, no eMail address was specified.
-                # print("Fixup for email required, but FAILED for {0}".format(addr))
-                name = addr
-                rand_str = "".join(random.choice(string.ascii_lowercase + string.digits)
-                                   for i in range(10))
-                email = "could.not.resolve@" + rand_str
+                # check for the following special format: email@domain.tld <>
+                strangePattern = re.compile(r'(.*@.*)\s+(<>)')
+                m3 = re.search(strangePattern, addr)
+                if m3:
+                    # Replace addr by "email AT domain.tld <email@domain.tld>"
+                    name = m3.group(1).replace("@", " AT ") # the "@" could cause parsing problems in the ID service
+                    email = m3.group(1)
+                    # print "Fixup for addr {0} required -> ({1}/{2})".format(addr, name, email)
+                else:
+                    # In this case, no eMail address was specified.
+                    # print("Fixup for email required, but FAILED for {0}".format(addr))
+                    name = addr
+                    rand_str = "".join(random.choice(string.ascii_lowercase + string.digits)
+                                       for i in range(10))
+                    email = "could.not.resolve@" + rand_str
 
         email = email.lower()
 
