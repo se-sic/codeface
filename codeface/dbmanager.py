@@ -254,8 +254,8 @@ class DBManager:
 
         self.doExec(stmt, args)
         if self.cur.rowcount == 0:
-            raise Exception("Commit from project {} not found!".
-                            format(projectId))
+            raise Exception("Commit {0} from project {1} not found!".
+                            format(commitHash, projectId))
         return self.doFetchAll()[0][0]
 
     def getRevisionID(self, projectID, tag):
