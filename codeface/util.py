@@ -475,11 +475,26 @@ def generate_analysis_windows(repo, window_size_months):
     latest_date_result = execute_command(cmd_date).splitlines()[0]
     latest_commit = parse_iso_git_date(latest_date_result)
 
+    cmd_root_commit_dates = 'git --git-dir={0} log --max-parents=0 --format=%ad  --date=iso8601'\
+        .format(repo).split()
+    root_commit_dates_result = execute_command(cmd_root_commit_dates).splitlines()
+    earliest_root_commit_date = min([parse_iso_git_date(root_commit) for root_commit in root_commit_dates_result])
+
     print_fmt = "%Y-%m-%dT%H:%M:%S+0000"
     month = timedelta(days=30)
 
     def get_before_arg(num_months):
         date = latest_commit - num_months * month
+
+        # Due to a bug in git, broken author information in commit objects can lead to a timestamp of 0 when using the
+        # --before option although the dates themselves are not broken and can be parsed without problems.
+        # For more details, see the whole thread conversation on the git mailing list here:
+        # https://lore.kernel.org/git/7728e059-d58d-cce7-c011-fbc16eb22fb9@cs.uni-saarland.de/
+        # To avoid running into an infinite while loop below (due to timestamps being 0), check if the date is earlier
+        # than the date of the earliest root commit and break if this is the case.
+        if date < earliest_root_commit_date:
+            raise ValueError("The before-arg date is earlier than the earliest commit in the repository.")
+
         return '--before=' + date.strftime(print_fmt)
 
     revs = []
@@ -493,13 +508,20 @@ def generate_analysis_windows(repo, window_size_months):
     revs.extend(rev_end)
 
     while start != end:
-        cmd = cmd_base_max1 + [get_before_arg(start)]
-        rev_start = execute_command(cmd).splitlines()
+
+        try:
+            cmd = cmd_base_max1 + [get_before_arg(start)]
+            rev_start = execute_command(cmd).splitlines()
+        except ValueError as ve:
+            rev_start = []
+            log.info("rev_start would be earlier than earliest root commit. Start at initial commit instead...")
 
         if len(rev_start) == 0:
             start = end
-            cmd = cmd_base + ['--reverse']
-            rev_start = [execute_command(cmd).splitlines()[0]]
+            #cmd = cmd_base + ['--reverse']
+            #rev_start = [execute_command(cmd).splitlines()[0]]
+            cmd = cmd_base + ['--max-parents=0']
+            rev_start = [execute_command(cmd).splitlines()[-1]]
         else:
             end = start
             start = end + window_size_months
