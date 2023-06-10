@@ -6,16 +6,8 @@ sudo DEBIAN_FRONTEND=noninteractive apt-get -qqy install software-properties-com
 echo "Adding R cran repositories"
 version=`lsb_release -r | awk '{ print $2;}'`
 
-case ${version} in
-    "14.04")
-	echo "deb http://cran.rstudio.com/bin/linux/ubuntu trusty/" | sudo tee -a /etc/apt/sources.list
-	;;
-    "16.04")
-	echo "deb http://cran.rstudio.com/bin/linux/ubuntu xenial/" | sudo tee -a /etc/apt/sources.list
-	;;
-    *) echo "Unsupported version of Ubuntu detected, aborting"
-       exit 1;;
-esac
+deb https://cloud.r-project.org/bin/linux/ubuntu jammy-cran40/
+wget -qO- https://cloud.r-project.org/bin/linux/ubuntu/marutter_pubkey.asc | sudo tee -a /etc/apt/trusted.gpg.d/cran_ubuntu_key.asc
 
 gpg --keyserver keyserver.ubuntu.com --recv-key E084DAB9
 gpg -a --export E084DAB9 | sudo apt-key add -
