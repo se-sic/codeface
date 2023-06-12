@@ -65,7 +65,7 @@ devtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/BH/B
 devtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/slam/slam_0.1-40.tar.gz")
 devtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/arules/arules_1.5-0.tar.gz")
 devtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/proxy/proxy_0.4-16.tar.gz")
-devtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/tm/tm_0.7-1.tar.gz")
+# gitdevtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/tm/tm_0.7-1.tar.gz")
 devtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/logging/logging_0.8-104.tar.gz")
 devtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/markovchain/markovchain_0.8.6.tar.gz")
 devtools::install_url("https://cloud.r-project.org/CRAN/src/contrib/Archive/rjson/rjson_0.2.20.tar.gz")
