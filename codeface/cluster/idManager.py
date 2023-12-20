@@ -80,6 +80,13 @@ class idManager:
         addr = addr.replace("[", "").replace("]", "")
         (name, email) = parseaddr(addr)
 
+        # Handle cases where the name is unknown from commits that potentially
+        # predate the era of git, where only an e-mail address was given.
+        # In such a case, we set the name to the e-mail address. Otherwise,
+        # all authors with unknown name would be matched to one person.
+        if (name == "unknown" or name == "unknown (none)" or name == "none"):
+            name = email
+
         # The eMail parser cannot handle Surname, Name <email@domain.tld> properly.
         # Provide a fixup hack for this case
         if (name == "" or email.count("@") == 0):
