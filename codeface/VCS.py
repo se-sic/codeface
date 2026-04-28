@@ -1510,6 +1510,16 @@ class gitVCS (VCS):
             func_lines = self._parseSrcFileCtags(srcFile.name)
             file_commit.artefact_line_range = False
 
+        if not func_lines:
+            # No functions detected by either Doxygen or ctags (e.g., for
+            # Markdown or other non-code files). Fall back to a single
+            # synthetic file-level artefact so that commits touching such
+            # files still populate commit_dependency instead of being dropped
+            # from the dependency-based analysis pipeline entirely.
+            # FILE_LEVEL is an established special entityId in this codebase.
+            func_lines = {0: "FILE_LEVEL"}
+            file_commit.artefact_line_range = True
+
         # clean up src temp file
         srcFile.close()
 
