@@ -125,6 +125,9 @@ class VCS:
         #file names to include in analysis(non-taged based)
         self._fileNames = None
 
+        #when True, skip the source-file extension filter in addFiles4Analysis
+        self._all_files = False
+
         self.subsys_description = {}
 
     def getCommitDict(self):
@@ -144,6 +147,9 @@ class VCS:
 
     def setFileNames(self, fileNames):
         self._fileNames = fileNames
+
+    def setAllFiles(self, value):
+        self._all_files = value
 
     def getFileNames(self):
         return self._fileNames
@@ -1579,23 +1585,26 @@ class gitVCS (VCS):
         cmd_base.append("-r")
 
         #get all files touched by all commits
-        all_files = set()
+        touched_files = set()
         for cmt_id in cmt_id_list:
             cmd = cmd_base + [cmt_id]
             cmt_files = execute_command(cmd).splitlines()
-            all_files.update(cmt_files)
+            touched_files.update(cmt_files)
 
-        #filter results to only get implementation files
-        fileExt = (".c", ".cc", ".cpp", ".cxx", ".cs", ".asmx", ".m", ".mm",
-                   ".js", ".coffee", ".java", ".j", ".jav", ".php",".py", ".sh", ".ps1", ".rb",
-                   '.d', '.php4', '.php5', '.inc', '.phtml', '.m', '.mm', ".ada", ".erl", ".bb",
-                   '.f', '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl', 'sql', ".q", ".exs", ".ex",
-                   ".ru", ".rs", ".ts", ".go", ".dart", ".r", ".rscript", ".vue", # ".hs",
-                   ".pl", ".pm", ".swift", ".lua", ".scala", ".sc", ".lisp", ".lsp", # ".feature",
-                   ".groovy", ".gy", ".gv", ".gvy", ".gsh", ".kt", ".kts", ".ktm", ".es6", ".jsm")
+        if self._all_files:
+            fileNames = list(touched_files)
+        else:
+            #filter results to only get implementation files
+            fileExt = (".c", ".cc", ".cpp", ".cxx", ".cs", ".asmx", ".m", ".mm",
+                       ".js", ".coffee", ".java", ".j", ".jav", ".php",".py", ".sh", ".ps1", ".rb",
+                       '.d', '.php4', '.php5', '.inc', '.phtml', '.m', '.mm', ".ada", ".erl", ".bb",
+                       '.f', '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl', 'sql', ".q", ".exs", ".ex",
+                       ".ru", ".rs", ".ts", ".go", ".dart", ".r", ".rscript", ".vue", # ".hs",
+                       ".pl", ".pm", ".swift", ".lua", ".scala", ".sc", ".lisp", ".lsp", # ".feature",
+                       ".groovy", ".gy", ".gv", ".gvy", ".gsh", ".kt", ".kts", ".ktm", ".es6", ".jsm")
 
-        fileNames = [fileName for fileName in all_files if
-                     fileName.lower().endswith(fileExt)]
+            fileNames = [fileName for fileName in touched_files if
+                         fileName.lower().endswith(fileExt)]
 
         self.setFileNames(fileNames)
 
