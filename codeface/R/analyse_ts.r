@@ -83,6 +83,7 @@ compute.next.timestamp <- function(time, last.time) {
 ## Take a list of commits and make their date indices unique by
 ## adding a one second offset to identical ones.
 make.index.unique <- function(dat, subset) {
+  if (nrow(dat) == 0) return(dat)
   dat$commitDate <- ymd_hms(dat$commitDate, quiet=TRUE)
   last.timestamp <- min(dat$commitDate) - dseconds(1)
 
