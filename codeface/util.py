@@ -537,7 +537,7 @@ def generate_analysis_windows(repo, window_size_months):
     # first commit does not carry the earliest commit date
     revs = [rev.split(",") for rev in revs]
     rev_len = len(revs)
-    if int(revs[0][1]) > int(revs[1][1]):
+    if len(revs) >= 2 and int(revs[0][1]) > int(revs[1][1]):
       del revs[0]
 
     # Extract hash values and dates intro seperate lists
