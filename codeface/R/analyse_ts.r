@@ -111,6 +111,7 @@ gen.full.ts <- function(conf) {
   }
 
   for (i in 1:length(ts)) {
+    if (is.null(ts[[i]])) next
     ts[[i]]$ChangedLines <- ts[[i]]$AddedLines + ts[[i]]$DeletedLines
     full.series[[i]] <- na.omit(xts(ts[[i]]$ChangedLines,
                                     order.by=ts[[i]]$commitDate))
