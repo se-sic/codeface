@@ -142,8 +142,6 @@ gen.rev.list <- function(revisions) {
 ## data point. Using the robust median instead of mean considerably
 ## reduces the amount of outliers
 process.ts <- function(series) {
-  duration <- end(series) - start(series)
-
   ## We compute the window lengths based on natural time units
   ## to avoid dependencies on the lifetime of the project, or on the
   ## project's relative activity
@@ -523,7 +521,7 @@ do.ts.analysis <- function(resdir, graphdir, conf) {
   ## Prepare the raw time series as input to the smoothing
   ## algorithms
   full.ts <- gen.full.ts(conf)
-  if (is.null(full.ts)) {
+  if (is.null(full.ts) || length(full.ts) == 0) {
     logwarn("No commit data found for any release range; skipping time series analysis",
             logger="analyse_ts")
     return(invisible(NULL))
