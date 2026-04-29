@@ -523,6 +523,11 @@ do.ts.analysis <- function(resdir, graphdir, conf) {
   ## Prepare the raw time series as input to the smoothing
   ## algorithms
   full.ts <- gen.full.ts(conf)
+  if (is.null(full.ts)) {
+    logwarn("No commit data found for any release range; skipping time series analysis",
+            logger="analyse_ts")
+    return(invisible(NULL))
+  }
   series.merged <- process.ts(full.ts)
 
   ## Prepare y ranges for the different graph types
