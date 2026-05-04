@@ -526,7 +526,7 @@ def generate_analysis_windows(repo, window_size_months):
             end = start
             start = end + window_size_months
 
-        # Check if any commits occurred since the last analysis window
+        # Check if any commits occurred since the last analysis window.
         if rev_start[0] != revs[0]:
             revs = rev_start + revs
         # else: no commit happened since last window, don't add duplicate
@@ -540,13 +540,13 @@ def generate_analysis_windows(repo, window_size_months):
     if len(revs) >= 2 and int(revs[0][1]) > int(revs[1][1]):
       del revs[0]
 
-    # Extract hash values and dates intro seperate lists
+    # Extract hash values and dates into separate lists
     revs_hash = [rev[0] for rev in revs]
     revs_date = [rev[2].split(" ")[0] for rev in revs]
 
-    # We cannot detect release canndidate tags in this analysis mode,
+    # We cannot detect release candidate tags in this analysis mode,
     # so provide a list with None entries
-    rcs = [None for x in range(len(revs))]
+    rcs = [None for x in range(len(revs_hash))]
 
     return revs_hash, rcs, revs_date
 
