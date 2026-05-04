@@ -252,7 +252,13 @@ def execute_command(cmd, ignore_errors=False, direct_io=False, cwd=None, silent_
     If direct_io is True, do not capture the stdin and stdout of the command.
     Returns the stdout of the command.
     '''
-    jcmd = " ".join(cmd)
+    # In Python 2, cmd may contain a mix of unicode (e.g. repo path from
+    # PyYAML config) and bytes (e.g. filenames from git output).  A plain
+    # " ".join() would then try to decode bytes with non-ASCII content
+    # (like emoji filenames) as ASCII and raise UnicodeDecodeError.
+    # Encode any unicode elements to UTF-8 bytes so the join stays in bytes.
+    jcmd = b" ".join(s.encode('utf-8') if isinstance(s, unicode) else s
+                     for s in cmd)
     log.debug("Running command: {}".format(jcmd))
     try:
         if direct_io:

@@ -1231,7 +1231,7 @@ class gitVCS (VCS):
                 rev = self.rev_end
 
             # Check if file has been deleted or is a submodule (gitlink)
-            cmd = "git --git-dir={0} ls-tree".format(self.repo).split()
+            cmd = "git -c core.quotepath=false --git-dir={0} ls-tree".format(self.repo).split()
             cmd.append("--full-tree")
             cmd.append("-r")
             cmd.append(rev)
@@ -1582,7 +1582,7 @@ class gitVCS (VCS):
         -- Input --
         directories - a list of paths to limit the search for filenames
         '''
-        cmd_base = 'git --git-dir={0} diff-tree'.format(self.repo).split()
+        cmd_base = 'git -c core.quotepath=false --git-dir={0} diff-tree'.format(self.repo).split()
         cmd_base.append("--diff-filter=ACMRTB")
         cmd_base.append("--no-commit-id")
         cmd_base.append("--name-only")
