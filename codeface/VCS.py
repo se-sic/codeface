@@ -1230,13 +1230,17 @@ class gitVCS (VCS):
                 #revision range
                 rev = self.rev_end
 
-            # Check if file has been deleted
+            # Check if file has been deleted or is a submodule (gitlink)
             cmd = "git --git-dir={0} ls-tree".format(self.repo).split()
-            cmd.append("--name-only")
             cmd.append("--full-tree")
             cmd.append("-r")
             cmd.append(rev)
-            existing_files = execute_command(cmd).split()
+            ls_tree_output = execute_command(cmd).splitlines()
+            # ls-tree output format: "<mode> <type> <hash>\t<filename>"
+            # Exclude gitlinks (mode 160000) which represent git submodules;
+            # git blame cannot be run on a submodule path.
+            existing_files = [line.split('\t', 1)[1] for line in ls_tree_output
+                              if line and not line.startswith('160000')]
             if file_commit.filename in existing_files:
                 # retrieve blame data
                 if singleBlame: #only one set of blame data per file
