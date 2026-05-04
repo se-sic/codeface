@@ -543,8 +543,7 @@ def generate_analysis_windows(repo, window_size_months):
     if len(revs) < 2:
         log.critical("The repository contains only a single commit. "
                      "At least two commits are required for analysis.")
-        raise ValueError("Repository has only one commit; "
-                         "analysis requires at least two commits.")
+        sys.exit(1)
 
     # Extract hash values and dates into separate lists
     revs_hash = [rev[0] for rev in revs]
