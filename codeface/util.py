@@ -527,7 +527,9 @@ def generate_analysis_windows(repo, window_size_months):
             start = end + window_size_months
 
         # Check if any commits occurred since the last analysis window.
-        if rev_start[0] != revs[0]:
+        # revs may be empty if no commit was found by the initial --before query
+        # (e.g. single-commit repo); treat that the same as a new entry.
+        if len(revs) == 0 or rev_start[0] != revs[0]:
             revs = rev_start + revs
         # else: no commit happened since last window, don't add duplicate
         #       revisions
