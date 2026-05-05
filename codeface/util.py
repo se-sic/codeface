@@ -252,7 +252,13 @@ def execute_command(cmd, ignore_errors=False, direct_io=False, cwd=None, silent_
     If direct_io is True, do not capture the stdin and stdout of the command.
     Returns the stdout of the command.
     '''
-    jcmd = " ".join(cmd)
+    # In Python 2, cmd may contain a mix of unicode (e.g. repo path from
+    # PyYAML config) and bytes (e.g. filenames from git output).  A plain
+    # " ".join() would then try to decode bytes with non-ASCII content
+    # (like emoji filenames) as ASCII and raise UnicodeDecodeError.
+    # Encode any unicode elements to UTF-8 bytes so the join stays in bytes.
+    jcmd = b" ".join(s.encode('utf-8') if isinstance(s, unicode) else s
+                     for s in cmd)
     log.debug("Running command: {}".format(jcmd))
     try:
         if direct_io:
@@ -526,8 +532,10 @@ def generate_analysis_windows(repo, window_size_months):
             end = start
             start = end + window_size_months
 
-        # Check if any commits occurred since the last analysis window
-        if rev_start[0] != revs[0]:
+        # Check if any commits occurred since the last analysis window.
+        # revs may be empty if no commit was found by the initial --before query
+        # (e.g. single-commit repo); treat that the same as a new entry.
+        if len(revs) == 0 or rev_start[0] != revs[0]:
             revs = rev_start + revs
         # else: no commit happened since last window, don't add duplicate
         #       revisions
@@ -537,16 +545,21 @@ def generate_analysis_windows(repo, window_size_months):
     # first commit does not carry the earliest commit date
     revs = [rev.split(",") for rev in revs]
     rev_len = len(revs)
-    if int(revs[0][1]) > int(revs[1][1]):
+    if len(revs) >= 2 and int(revs[0][1]) > int(revs[1][1]):
       del revs[0]
 
-    # Extract hash values and dates intro seperate lists
+    if len(revs) < 2:
+        log.critical("The repository contains only a single commit. "
+                     "At least two commits are required for analysis.")
+        sys.exit(1)
+
+    # Extract hash values and dates into separate lists
     revs_hash = [rev[0] for rev in revs]
     revs_date = [rev[2].split(" ")[0] for rev in revs]
 
-    # We cannot detect release canndidate tags in this analysis mode,
+    # We cannot detect release candidate tags in this analysis mode,
     # so provide a list with None entries
-    rcs = [None for x in range(len(revs))]
+    rcs = [None for x in range(len(revs_hash))]
 
     return revs_hash, rcs, revs_date
 

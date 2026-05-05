@@ -125,6 +125,9 @@ class VCS:
         #file names to include in analysis(non-taged based)
         self._fileNames = None
 
+        #when True, skip the source-file extension filter in addFiles4Analysis
+        self._all_files = False
+
         self.subsys_description = {}
 
     def getCommitDict(self):
@@ -144,6 +147,9 @@ class VCS:
 
     def setFileNames(self, fileNames):
         self._fileNames = fileNames
+
+    def setAllFiles(self, value):
+        self._all_files = value
 
     def getFileNames(self):
         return self._fileNames
@@ -1224,13 +1230,17 @@ class gitVCS (VCS):
                 #revision range
                 rev = self.rev_end
 
-            # Check if file has been deleted
-            cmd = "git --git-dir={0} ls-tree".format(self.repo).split()
-            cmd.append("--name-only")
+            # Check if file has been deleted or is a submodule (gitlink)
+            cmd = "git -c core.quotepath=false --git-dir={0} ls-tree".format(self.repo).split()
             cmd.append("--full-tree")
             cmd.append("-r")
             cmd.append(rev)
-            existing_files = execute_command(cmd).split()
+            ls_tree_output = execute_command(cmd).splitlines()
+            # ls-tree output format: "<mode> <type> <hash>\t<filename>"
+            # Exclude gitlinks (mode 160000) which represent git submodules;
+            # git blame cannot be run on a submodule path.
+            existing_files = [line.split('\t', 1)[1] for line in ls_tree_output
+                              if line and not line.startswith('160000')]
             if file_commit.filename in existing_files:
                 # retrieve blame data
                 if singleBlame: #only one set of blame data per file
@@ -1510,6 +1520,16 @@ class gitVCS (VCS):
             func_lines = self._parseSrcFileCtags(srcFile.name)
             file_commit.artefact_line_range = False
 
+        if not func_lines:
+            # No functions detected by either Doxygen or ctags (e.g., for
+            # Markdown or other non-code files). Fall back to a single
+            # synthetic file-level artefact so that commits touching such
+            # files still populate commit_dependency instead of being dropped
+            # from the dependency-based analysis pipeline entirely.
+            # FILE_LEVEL is an established special entityId in this codebase.
+            func_lines = {0: "FILE_LEVEL"}
+            file_commit.artefact_line_range = True
+
         # clean up src temp file
         srcFile.close()
 
@@ -1562,30 +1582,33 @@ class gitVCS (VCS):
         -- Input --
         directories - a list of paths to limit the search for filenames
         '''
-        cmd_base = 'git --git-dir={0} diff-tree'.format(self.repo).split()
+        cmd_base = 'git -c core.quotepath=false --git-dir={0} diff-tree'.format(self.repo).split()
         cmd_base.append("--diff-filter=ACMRTB")
         cmd_base.append("--no-commit-id")
         cmd_base.append("--name-only")
         cmd_base.append("-r")
 
         #get all files touched by all commits
-        all_files = set()
+        touched_files = set()
         for cmt_id in cmt_id_list:
             cmd = cmd_base + [cmt_id]
             cmt_files = execute_command(cmd).splitlines()
-            all_files.update(cmt_files)
+            touched_files.update(cmt_files)
 
-        #filter results to only get implementation files
-        fileExt = (".c", ".cc", ".cpp", ".cxx", ".cs", ".asmx", ".m", ".mm",
-                   ".js", ".coffee", ".java", ".j", ".jav", ".php",".py", ".sh", ".ps1", ".rb",
-                   '.d', '.php4', '.php5', '.inc', '.phtml', '.m', '.mm', ".ada", ".erl", ".bb",
-                   '.f', '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl', 'sql', ".q", ".exs", ".ex",
-                   ".ru", ".rs", ".ts", ".go", ".dart", ".r", ".rscript", ".vue", # ".hs",
-                   ".pl", ".pm", ".swift", ".lua", ".scala", ".sc", ".lisp", ".lsp", # ".feature",
-                   ".groovy", ".gy", ".gv", ".gvy", ".gsh", ".kt", ".kts", ".ktm", ".es6", ".jsm")
+        if self._all_files:
+            fileNames = list(touched_files)
+        else:
+            #filter results to only get implementation files
+            fileExt = (".c", ".cc", ".cpp", ".cxx", ".cs", ".asmx", ".m", ".mm",
+                       ".js", ".coffee", ".java", ".j", ".jav", ".php",".py", ".sh", ".ps1", ".rb",
+                       '.d', '.php4', '.php5', '.inc', '.phtml', '.m', '.mm', ".ada", ".erl", ".bb",
+                       '.f', '.for', '.f90', '.idl', '.ddl', '.odl', '.tcl', 'sql', ".q", ".exs", ".ex",
+                       ".ru", ".rs", ".ts", ".go", ".dart", ".r", ".rscript", ".vue", # ".hs",
+                       ".pl", ".pm", ".swift", ".lua", ".scala", ".sc", ".lisp", ".lsp", # ".feature",
+                       ".groovy", ".gy", ".gv", ".gvy", ".gsh", ".kt", ".kts", ".ktm", ".es6", ".jsm")
 
-        fileNames = [fileName for fileName in all_files if
-                     fileName.lower().endswith(fileExt)]
+            fileNames = [fileName for fileName in touched_files if
+                         fileName.lower().endswith(fileExt)]
 
         self.setFileNames(fileNames)
 
