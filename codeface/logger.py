@@ -26,7 +26,6 @@ instead of the current handcoded configuration.
 '''
 import logging
 import os
-import multiprocessing
 from copy import copy
 
 DEVINFO_LEVEL = 15

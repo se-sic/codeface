@@ -18,16 +18,10 @@
 
 # Create time series from a sequence of VCS objects
 
-import yaml
 import os.path
-import kerninfo
 import pickle
 import argparse
-from datetime import datetime
-
-from .VCS import gitVCS
-from .commit_analysis import createCumulativeSeries, createSeries, \
-    writeToFile, getSeriesDuration
+from .commit_analysis import createSeries
 from .dbmanager import DBManager, tstamp_to_sql
 from .util import gen_range_path
 

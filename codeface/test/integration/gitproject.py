@@ -93,7 +93,7 @@ class GitProject(object):
                         else:
                             unlink(f)
                 # Insert the files specified in the commits filetree
-                for f, content in c.filetree.iteritems():
+                for f, content in c.filetree.items():
                     dn, fn = pathsplit(f)
                     if dn and not exists(dn):
                         makedirs(dn)

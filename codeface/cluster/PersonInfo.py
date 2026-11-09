@@ -15,8 +15,8 @@
 # Copyright 2012, 2013, Siemens AG, Wolfgang Mauerer <wolfgang.mauerer@siemens.com>
 # All Rights Reserved.
 
-from logging import getLogger;
-from codeface.linktype import LinkType
+from logging import getLogger
+from ..linktype import LinkType
 
 log = getLogger(__name__)
 
@@ -195,7 +195,7 @@ class PersonInfo:
         self.commit_list.append(cmt)
 
     def _getLinksReceivedByID(self, link_hash, ID):
-        if ID in link_hash.keys():
+        if ID in list(link_hash.keys()):
             return link_hash[ID]
         else:
             return RelationWeights()

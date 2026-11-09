@@ -20,6 +20,8 @@ from os.path import join as pathjoin, split as pathsplit, abspath
 
 from .dbmanager import DBManager
 from .configuration import Configuration, ConfigurationError
+from .incremental import (completion_signature, is_complete,
+                          invalidate_completion, mark_complete)
 from .cluster.cluster import doProjectAnalysis, LinkType
 from .ts import dispatch_ts_analysis
 from .conway import dispatch_jira_processing, parseCommitLoC
@@ -31,7 +33,7 @@ def loginfo(msg):
     ''' Pickleable function for multiprocessing '''
     log.info(msg)
 
-def project_setup(conf, recreate):
+def project_setup(conf, recreate, allow_tail_change=False):
     '''
     This method updates the project in the database with the release
     information given in the configuration.
@@ -43,7 +45,7 @@ def project_setup(conf, recreate):
     dbm = DBManager(conf)
     new_range_ids = dbm.update_release_timeline(conf["project"],
             conf["tagging"], conf["revisions"], conf["rcs"],
-            recreate_project=recreate)
+            recreate_project=recreate, allow_tail_change=allow_tail_change)
     project_id = dbm.getProjectID(conf["project"], conf["tagging"])
     revs = conf["revisions"]
     all_range_ids = [dbm.getReleaseRangeID(project_id,
@@ -54,7 +56,8 @@ def project_setup(conf, recreate):
 
 def project_analyse(resdir, gitdir, codeface_conf, project_conf,
                     no_report, loglevel, logfile, recreate, profile_r,
-                    n_jobs, tagging_type, reuse_db):
+                    n_jobs, tagging_type, reuse_db, all_files=False, incremental=False,
+                    skip_identity_merging=False):
     pool = BatchJobPool(int(n_jobs))
     conf = Configuration.load(codeface_conf, project_conf)
     tagging = conf["tagging"]
@@ -74,14 +77,17 @@ def project_analyse(resdir, gitdir, codeface_conf, project_conf,
     repo = pathjoin(gitdir, conf["repo"], ".git")
     project_resdir = pathjoin(resdir, project, tagging)
     range_by_date = False
+    conf["all_files"] = all_files
+    conf["skip_identity_merging"] = skip_identity_merging
 
     # When revisions are not provided by the configuration file
     # generate the analysis window automatically
     if len(conf["revisions"]) < 2:
         window_size_months, num_window = get_analysis_windows(conf)
         revs, rcs, dates = generate_analysis_windows(repo, window_size_months)
-        conf["revisions"] = revs[-num_window-1:]
-        conf["rcs"] = rcs[-num_window-1:]
+        stop = None if num_window == -1 else num_window + 1
+        conf["revisions"] = revs[:stop]
+        conf["rcs"] = rcs[:stop]
         range_by_date = True
 
     # TODO: Sanity checks (ensure that git repo dir exists)
@@ -90,63 +96,74 @@ def project_analyse(resdir, gitdir, codeface_conf, project_conf,
     elif tagging in (LinkType.feature, LinkType.feature_file):
         check4cppstats()
 
-    project_id, dbm, all_range_ids = project_setup(conf, recreate)
+    project_id, dbm, all_range_ids = project_setup(conf, recreate, allow_tail_change=range_by_date)
+    if skip_identity_merging:
+        log.info("Using the ID service with identity merging disabled.")
 
     ## Save configuration file
     conf.write()
     project_conf = conf.get_conf_file_loc()
 
-    # Analyse new revision ranges
+    # Analyse new or changed ranges. Invalidate before starting so failed runs
+    # cannot leave an old success record behind.
+    pending_ranges = {}
     for i, range_id in enumerate(all_range_ids):
         start_rev, end_rev, rc_rev = dbm.get_release_range(project_id, range_id)
         range_resdir = gen_range_path(project_resdir, i+1, start_rev, end_rev)
         prefix = gen_prefix(i+1, len(all_range_ids), start_rev, end_rev)
+        signature = completion_signature(conf, repo, project_id, range_id,
+                                         (start_rev, end_rev, rc_rev), range_by_date)
+        if incremental and not recreate and is_complete(range_resdir, signature):
+            log.info(prefix + "Skipping completed range.")
+            continue
+        invalidate_completion(range_resdir)
+        pending_ranges[range_id] = (range_resdir, signature)
 
         #######
         # STAGE 1: Commit analysis
         s1 = pool.add(
                 doProjectAnalysis,
                 (conf, start_rev, end_rev, rc_rev, range_resdir, repo,
-                    reuse_db, True, range_by_date),
+                    reuse_db and not incremental, True, range_by_date),
                 startmsg=prefix + "Analysing commits...",
                 endmsg=prefix + "Commit analysis done."
             )
 
         #########
         # STAGE 2: Cluster analysis
-        exe = abspath(resource_filename(__name__, "R/cluster/persons.r"))
-        cwd, _ = pathsplit(exe)
-        cmd = []
-        cmd.append(exe)
-        cmd.extend(("--loglevel", loglevel))
-        if logfile:
-            cmd.extend(("--logfile", "{}.R.r{}".format(logfile, i)))
-        cmd.extend(("-c", codeface_conf))
-        cmd.extend(("-p", project_conf))
-        cmd.append(range_resdir)
-        cmd.append(str(range_id))
-
-        s2 = pool.add(
-                execute_command,
-                (cmd,),
-                {"direct_io":True, "cwd":cwd},
-                deps=[s1],
-                startmsg=prefix + "Detecting clusters...",
-                endmsg=prefix + "Detecting clusters done."
-            )
-
-        #########
-        # STAGE 3: Generate cluster graphs
-        if not no_report:
-            pool.add(
-                    generate_reports,
-                    (start_rev, end_rev, range_resdir),
-                    deps=[s2],
-                    startmsg=prefix + "Generating reports...",
-                    endmsg=prefix + "Report generation done."
-                )
-
-    # Wait until all batch jobs are finished
+    #     exe = abspath(resource_filename(__name__, "R/cluster/persons.r"))
+    #     cwd, _ = pathsplit(exe)
+    #     cmd = []
+    #     cmd.append(exe)
+    #     cmd.extend(("--loglevel", loglevel))
+    #     if logfile:
+    #         cmd.extend(("--logfile", "{}.R.r{}".format(logfile, i)))
+    #     cmd.extend(("-c", codeface_conf))
+    #     cmd.extend(("-p", project_conf))
+    #     cmd.append(range_resdir)
+    #     cmd.append(str(range_id))
+    #
+    #     s2 = pool.add(
+    #             execute_command,
+    #             (cmd,),
+    #             {"direct_io":True, "cwd":cwd},
+    #             deps=[s1],
+    #             startmsg=prefix + "Detecting clusters...",
+    #             endmsg=prefix + "Detecting clusters done."
+    #         )
+    #
+    #     #########
+    #     # STAGE 3: Generate cluster graphs
+    #     if not no_report:
+    #         pool.add(
+    #                 generate_reports,
+    #                 (start_rev, end_rev, range_resdir),
+    #                 deps=[s2],
+    #                 startmsg=prefix + "Generating reports...",
+    #                 endmsg=prefix + "Report generation done."
+    #             )
+    #
+    # Wait until all range analyses have finished before reading their results.
     pool.join()
 
     #########
@@ -160,6 +177,8 @@ def project_analyse(resdir, gitdir, codeface_conf, project_conf,
     ## after time series generation
     log.info("=> Performing complexity analysis")
     for i, range_id in enumerate(all_range_ids):
+        if range_id not in pending_ranges:
+            continue
         log.info("  -> Analysing range {}".format(range_id))
         exe = abspath(resource_filename(__name__, "R/complexity.r"))
         cwd, _ = pathsplit(exe)
@@ -173,6 +192,7 @@ def project_analyse(resdir, gitdir, codeface_conf, project_conf,
         cmd.append(repo)
         cmd.append(str(range_id))
         execute_command(cmd, direct_io=True, cwd=cwd)
+        mark_complete(*pending_ranges[range_id])
 
     #########
     # Global stage 3: Time series analysis
@@ -252,25 +272,25 @@ def conway_analyse(resdir, gitdir, titandir, codeface_conf, project_conf,
 
     # Set defaults for the various analysis choices if they are not explicitly
     # given in the configuration file
-    if "artifactType" not in conf.keys():
+    if "artifactType" not in list(conf.keys()):
         conf["artifactType"] = "file"
         log.info("Conway analysis: No artefact type given, defaulting to 'file'")
 
-    if "dependencyType" not in conf.keys():
+    if "dependencyType" not in list(conf.keys()):
         conf["dependencyType"] = "none"
         log.info("Conway analysis: No dependency type given, defaulting to 'none'")
 
-    if "qualityType" not in conf.keys():
+    if "qualityType" not in list(conf.keys()):
         conf["qualityType"] = "corrective"
         log.info("Conway analysis: No quality type given, defaulting to 'corrective'")
 
-    if "communicationType" not in conf.keys():
+    if "communicationType" not in list(conf.keys()):
         conf["communicationType"] = "mail"
         log.info("Conway analysis: No communication type given, defaulting to 'mail'")
 
     if (conf["communicationType"] == "jira" or conf["communicationType"] == "mail+jira") and \
-        (("issueTrackerType" in conf.keys() and conf["issueTrackerType"] != "jira") or \
-        not("issueTrackerType" in conf.keys())):
+        (("issueTrackerType" in list(conf.keys()) and conf["issueTrackerType"] != "jira") or \
+        not("issueTrackerType" in list(conf.keys()))):
         log.info("Conway analysis only supports jira for bugtracking information, exiting")
         return
 
@@ -279,11 +299,12 @@ def conway_analyse(resdir, gitdir, titandir, codeface_conf, project_conf,
     if len(conf["revisions"]) < 2:
         window_size_months, num_window = get_analysis_windows(conf)
         revs, rcs, dates = generate_analysis_windows(repo, window_size_months)
-        conf["revisions"] = revs[-num_window-1:]
-        conf["rcs"] = rcs[-num_window-1:]
+        stop = None if num_window == -1 else num_window + 1
+        conf["revisions"] = revs[:stop]
+        conf["rcs"] = rcs[:stop]
         range_by_date = True
 
-    project_id, dbm, all_range_ids = project_setup(conf, False)
+    project_id, dbm, all_range_ids = project_setup(conf, False, allow_tail_change=range_by_date)
 
     ## Save modified configuration file to a temporary location
     conf.write()
@@ -318,7 +339,7 @@ def conway_analyse(resdir, gitdir, titandir, codeface_conf, project_conf,
 
         #########
         # STAGE 2: Connect commits and jira issues
-        if "communicationType" in conf.keys() and \
+        if "communicationType" in list(conf.keys()) and \
             (conf["communicationType"] == "jira" or conf["communicationType"] == "mail+jira"):
             exe = abspath(resource_filename(__name__, "R/conway_metrics.r"))
             cwd, _ = pathsplit(exe)
@@ -344,7 +365,7 @@ def conway_analyse(resdir, gitdir, titandir, codeface_conf, project_conf,
 
         #######
         # STAGE 3: Obtain DSM using understand
-        if "dependencyType" in conf.keys() and conf["dependencyType"] == "dsm":
+        if "dependencyType" in list(conf.keys()) and conf["dependencyType"] == "dsm":
             exe = abspath(resource_filename(__name__, "R/gen_dsm.r"))
             cwd, _ = pathsplit(exe)
             cmd = []
@@ -380,7 +401,7 @@ def conway_analyse(resdir, gitdir, titandir, codeface_conf, project_conf,
         cmd.extend(("-p", project_conf))
         cmd.append(project_resdir)
         cmd.append(str(i+1))
-        if "dependencyType" in conf.keys() and conf["dependencyType"] == "dsm":
+        if "dependencyType" in list(conf.keys()) and conf["dependencyType"] == "dsm":
             deps=[s3]
         else:
             deps=[s2]

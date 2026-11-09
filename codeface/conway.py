@@ -20,19 +20,11 @@
 
 # Data gathering and preparation steps for Conway analysis
 
-import yaml
 import os.path
-import argparse
-import codecs
-import time
-import csv
-import sys
 from time import sleep
-from datetime import datetime
 from logging import getLogger; log = getLogger(__name__)
 from progressbar import ProgressBar, Percentage, Bar, ETA
 
-from .VCS import gitVCS
 from .dbmanager import DBManager
 from .util import execute_command, encode_items_as_utf8
 from os import listdir
@@ -42,6 +34,11 @@ import jira
 import csv
 import urllib3
 urllib3.disable_warnings()
+
+# offline-mode: Simulate author lookups only; Titan downloading remains unchanged.
+# offline-mode: Set False to restore live author lookups.
+# offline-mode: Remove the synthetic jira_issue_comments.csv before using live mode.
+OFFLINE_JIRA = True
 
 # Given a user id and a jira instance, determine the email address associated with the
 # user id.
@@ -63,7 +60,7 @@ def get_email_from_jira(userid, jira):
     if not hasattr(user, "emailAddress"):
        user.emailAddress = ""
 
-    user_data = (user.name.lower(), fix_email_format(user.emailAddress), unicode(user.displayName))
+    user_data = (user.name.lower(), fix_email_format(user.emailAddress), str(user.displayName))
     return user_data
 
 
@@ -83,7 +80,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
         for channel in root:
             for channel_element in channel:
                 if channel_element.tag == "item":
-                    issue_elements = channel_element.getchildren()
+                    issue_elements = list(channel_element)
                     issue_key = None
                     issue_type = None
                     for issue in issue_elements:
@@ -92,7 +89,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
                         if issue.tag == "type":
                             issue_type = issue.text
                         if issue.tag == "reporter":
-                            issue_reporter = issue.get('username').lower().encode('utf-8')
+                            issue_reporter = issue.get('username').lower()
                             author_ids[issue_reporter] = 1
                         if issue.tag == "created":
                             row = {'IssueID': issue_key, 'IssueType': issue_type,
@@ -102,7 +99,7 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
                         if issue.tag  == "comments":
                              for comment in issue:
                                  issue_comment_author = None
-                                 issue_comment_author = comment.get('author').lower().encode('utf-8')
+                                 issue_comment_author = comment.get('author').lower()
                                  author_ids[issue_comment_author] = 1
                                  issue_comment_timestamp = comment.get('created')
                                  row = {'IssueID': issue_key, 'IssueType': issue_type,
@@ -110,8 +107,12 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
                                         'CommentTimestamp': issue_comment_timestamp }
                                  issue_list.append(row)
 
-    user_ids = author_ids.keys()
-    jira_instance = jira.JIRA(server=jira_url, basic_auth=(jira_user, jira_password))
+    user_ids = list(author_ids.keys())
+    # offline-mode: Client initialization itself makes a Jira request.
+    if OFFLINE_JIRA:
+        log.warning('offline-mode: Using synthetic author identities; Jira client initialization and author requests are skipped.')
+    else:
+        jira_instance = jira.JIRA(server=jira_url, basic_auth=(jira_user, jira_password))
 
     total = len(user_ids)
 
@@ -122,9 +123,16 @@ def parse_jira_issues(xmldir, resdir, jira_url, jira_user, jira_password):
 
     # counter for JIRA requests to make sure to not exceed the request limit
     request_counter = 0
-    max_requests = 45000 # 50,000 JIRA requests per 24 hours are allowed (but we don't count the requests from titan)
+    max_requests = 2500 # 50,000 JIRA requests per 24 hours are allowed (but we don't count the requests from titan)
 
     for i, userid in enumerate(user_ids):
+        # offline-mode: Populate the existing mappings without requests or rate-limit sleeps.
+        if OFFLINE_JIRA:
+            emails[userid] = '{}@example.invalid'.format(userid)
+            display_names[userid] = userid
+            pbar.update(i)
+            continue
+
         res = None
         try:
             # if the number of JIRA requests has reached the request limit, wait 24 hours
@@ -179,7 +187,8 @@ def dispatch_jira_processing(resdir, titandir, conf):
 
     dbm = DBManager(conf)
     projectID = dbm.getProjectID(conf["project"], conf["tagging"])
-    (date_start, date_end) = dbm.getProjectTimeRange(projectID)
+    #(date_start, date_end) = dbm.getProjectTimeRange(projectID)
+    (date_start, date_end) = ("2017-01-01", "2017-02-01")
 
     if (os.path.exists(xmldir)):
         log.info("Jira issues already present in directory {}, "\
@@ -305,7 +314,7 @@ def parseGitLogOutput(dat, dat_hashes, repo, outfile):
 def createFileDevTable(dbm, project_id, range_id, outfile):
     dat = dbm.get_file_dev(project_id, range_id)
 
-    with open(outfile, 'wb') as out:
+    with open(outfile, 'w', encoding='utf-8', newline='') as out:
         csv_out = csv.writer(out, delimiter="\t")
         csv_out.writerow(['id', 'commitHash', 'commitDate', 'author', 'description',
                           'file', 'commitId', 'fileSize'])

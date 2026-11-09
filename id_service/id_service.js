@@ -17,11 +17,12 @@
  * Required Modules
  */
 var express = require('express');
-var mysql = require('mysql');
+var mysql = require('mysql2');
 var yaml = require("js-yaml");
 var logger = require('./logger');
 var addressparser = require("addressparser");
 var bodyParser = require('body-parser');
+var libmime = require('libmime');
 
 // get property file name
 var fileName = process.argv[2];
@@ -63,6 +64,55 @@ var db_config = {
     database: config.dbname
 };
 var pool = mysql.createPool(db_config)
+
+// Migrate only when a request disables merging. Concurrent requests share the
+// migration, and failed migrations can be retried by a later request.
+var personIndexMigrated = false;
+var personIndexWaiters = [];
+function migratePersonIndex(callback) {
+    personIndexWaiters.push(callback);
+    if (personIndexWaiters.length > 1) {
+        return;
+    }
+    function finish(err) {
+        personIndexMigrated = !err;
+        if (err) {
+            logger.log('error', 'Index migration failed: ' + err);
+        }
+        var waiters = personIndexWaiters;
+        personIndexWaiters = [];
+        waiters.forEach(function(done) { done(err); });
+    }
+    pool.getConnection(function(err, connection) {
+        if (err) {
+            finish(err);
+            return;
+        }
+        function release(err) {
+            connection.release();
+            finish(err);
+        }
+        connection.query('SHOW INDEX FROM person;', function(err, rows) {
+            if (err) {
+                release(err);
+                return;
+            }
+            var indexes = rows.map(function(row) { return row.Key_name; });
+            var changes = [];
+            if (indexes.indexOf('person_email_project_idx') !== -1) {
+                changes.push('DROP INDEX person_email_project_idx');
+            }
+            if (indexes.indexOf('person_name_email_project_idx') === -1) {
+                changes.push('ADD UNIQUE KEY person_name_email_project_idx (projectId, name, email1)');
+            }
+            if (changes.length) {
+                connection.query('ALTER TABLE person ' + changes.join(', '), release);
+            } else {
+                release();
+            }
+        });
+    });
+}
 
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({
@@ -352,7 +402,17 @@ function checkedWithID(name, email, projectID, response, connection, callback) {
  * return if a matching entry is found. If the database needs to be updated,
  * the app.getOrUpdateUserInDB function is called from here
  */
-app.getUserFromDB = function(name, email, projectID, response) {
+app.getUserFromDB = function(name, email, projectID, response, skipIdentityMerging) {
+    if (skipIdentityMerging && !personIndexMigrated) {
+        migratePersonIndex(function(err) {
+            if (err) {
+                response.end(JSON.stringify({"error": "Index migration failed: " + err}));
+            } else {
+                app.getUserFromDB(name, email, projectID, response, skipIdentityMerging);
+            }
+        });
+        return;
+    }
     withCheckedConnection(response, function(connection) {
         // Return an error if ProjectId or name and email have been empty
         if (!projectID) {
@@ -376,7 +436,7 @@ app.getUserFromDB = function(name, email, projectID, response) {
                         logger.log('error', 'name ' + name + ' (no email ' + email + ') not found in database!');
                         response.end(JSON.stringify({"error": "name \"" + name + "\" not found in the database (no e-mail given)"}));
                     } else {
-                        app.getOrUpdateUserInDB(name, email, projectID, response)
+                        app.getOrUpdateUserInDB(name, email, projectID, response, skipIdentityMerging)
                     }
                 } else {
                     logger.log('error', 'database error: duplicate entries!');
@@ -392,7 +452,7 @@ app.getUserFromDB = function(name, email, projectID, response) {
  * Get, add or update a user in the DB given the name and email
  * This function uses MySQL table locks to synchronise.
  */
-app.getOrUpdateUserInDB = function(name, email, projectID, response) {
+app.getOrUpdateUserInDB = function(name, email, projectID, response, skipIdentityMerging) {
     // Assertion: email must be set at this point
     logger.log('info', 'inserting/updating user ' + name + ' <' + email + '>');
     withCheckedConnection(response, function(connection) {
@@ -425,7 +485,7 @@ app.getOrUpdateUserInDB = function(name, email, projectID, response) {
                         connection.release()
                     }
 
-                    if (name && email) {
+                    if (name && email && !skipIdentityMerging) {
                         // First, try to find a set by name
                         checkedWithID(name, null, projectID, response, connection, function(rows) {
                             if (rows.length >= 1) {
@@ -474,9 +534,9 @@ app.getOrUpdateUserInDB = function(name, email, projectID, response) {
                                 });
                             }
                         });
-                    } else { // only email is set
-                        q = 'INSERT INTO person (projectId, email1) VALUES (?, ?);'
-                        connection.query(q, [projectID, email],
+                    } else { // Merging is disabled, or only email is set.
+                        q = 'INSERT INTO person (projectId, name, email1) VALUES (?, ?, ?);'
+                        connection.query(q, [projectID, name || null, email],
 					 function(error, info) {
                             unlockTablePerson(connection)
                             connection.release()
@@ -526,8 +586,10 @@ app.postUserID = function(request, response) {
     var name = request.body.name;
     var email = request.body.email;
     var projectID = request.body.projectID;
+    var skipIdentityMerging = request.body.skipIdentityMerging === true ||
+                              request.body.skipIdentityMerging === 'true';
 
-    app.getUserFromDB(name, email, projectID, response);
+    app.getUserFromDB(name, email, projectID, response, skipIdentityMerging);
 }
 
 /**
@@ -539,7 +601,8 @@ app.postDecomposeUserID = function(request, response) {
     logger.log('info', request.body);
     var namestr = request.body.namestr;
     var projectID = request.body.projectID;
-    var parsed = addressparser(namestr)
+    var parsed = addressparser(namestr);
+    parsed[0].name = libmime.decodeWords(parsed[0].name);
 
     app.getUserFromDB(parsed[0].name, parsed[0].address, projectID, response);
 }

@@ -20,7 +20,7 @@
 import MySQLdb as mdb
 import time
 from datetime import datetime
-from logging import getLogger;
+from logging import getLogger
 from contextlib import contextmanager
 
 # create logger
@@ -323,14 +323,15 @@ class DBManager:
         return self.doFetchAll()[0][0]
 
     def update_release_timeline(self, project, tagging, revs, rcs,
-                                recreate_project=False):
+                                recreate_project=False, allow_tail_change=False):
         '''
         For a project, update the release timeline table with the given
         revisions. If existing releases/rcs from the timeline are not in
         order, the conservative approach is taken and the whole project is
         recreated to avoid inconsistencies.
 
-        Returns true if the project had to be recreated.
+        For automatically generated windows, allow replacing only the final
+        boundary while retaining earlier ranges. Returns new range IDs.
         '''
         assert len(revs) >= 2
         assert len(revs) == len(rcs)
@@ -348,6 +349,21 @@ class DBManager:
                 recreate_project = True
             if len(tags) == 0:
                 recreate_project = True
+
+        # A growing final automatic window changes only the last boundary.
+        # Delete that range's commits explicitly: their FK uses SET NULL.
+        if (not recreate_project and allow_tail_change and len(tags) >= 2
+                and len(revs) >= len(tags)
+                and tags[:-1] == revs[:len(tags) - 1]
+                and tags[-1] != revs[len(tags) - 1]):
+            end_id = self.getRevisionID(pid, tags[-1])
+            self.doExec("DELETE FROM `commit` WHERE releaseRangeId IN "
+                        "(SELECT id FROM release_range WHERE projectId=%s "
+                        "AND releaseEndId=%s)", (pid, end_id))
+            self.doExec("DELETE FROM release_timeline WHERE projectId=%s "
+                        "AND tag=%s AND type IN ('release', 'rc')", (pid, tags[-1]))
+            self.doCommit()
+            tags = tags[:-1]
 
         # Check that the tags are in the same order
         if not recreate_project:
@@ -403,7 +419,7 @@ class DBManager:
                           " does not match number of release tags!")
                 recreate_project = True
 
-            for i, (start, end, rc) in enumerate(self.doFetchAll()):
+            for i, (start, end, rc) in enumerate(ranges):
                 if i + 1 >= len(revs) or recreate_project:
                     # List of revisions to analyse was shortened
                     break
@@ -440,7 +456,7 @@ class DBManager:
             previous_rev = None
             if len(tags) > 0:
                 previous_rev = tags[-1]
-            for rev, rc in zip(revs, rcs)[len(tags):]:
+            for rev, rc in list(zip(revs, rcs))[len(tags):]:
                 self.doExecCommit("INSERT INTO release_timeline "
                                   "(type, tag, projectId) "
                                   "VALUES (%s, %s, %s)",

@@ -29,23 +29,23 @@ import unicodedata
 from collections import OrderedDict, namedtuple
 from glob import glob
 from math import sqrt
-from multiprocessing import Process, Queue, JoinableQueue, Lock
-from pickle import dumps, PicklingError
-from pkg_resources import resource_filename
+from multiprocessing import Process, Queue, Lock
+from importlib import resources as importlib_resources
 from subprocess import Popen, PIPE
 from tempfile import NamedTemporaryFile, mkdtemp
 from time import sleep
 from threading import enumerate as threading_enumerate
-from Queue import Empty
+from queue import Empty
 from datetime import timedelta, datetime
 from ftfy import fix_encoding
+from charset_normalizer import from_bytes
 
 # Represents a job submitted to the batch pool.
 BatchJobTuple = namedtuple('BatchJobTuple', ['id', 'func', 'args', 'kwargs',
         'deps', 'startmsg', 'endmsg'])
 class BatchJob(BatchJobTuple):
     def __init__(self, *args, **kwargs):
-        super(BatchJob, self).__init__(*args, **kwargs)
+        # namedtuple.__new__ already initializes the tuple's fields.
         self.done = False
         self.submitted = False
 
@@ -124,9 +124,9 @@ class BatchJobPool(object):
         Submit jobs and wait for all jobs to finish.
         '''
         try:
-            while not all(j.done for j in self.jobs.values()):
+            while not all(j.done for j in list(self.jobs.values())):
                 # Put jobs that are ready onto the work queue
-                for j in self.jobs.values():
+                for j in list(self.jobs.values()):
                     self._submit(j)
                 # Wait for a result from the done_queues
                 for dq in self.done_queues:
@@ -191,7 +191,7 @@ def batchjob_worker_function(work_queue, done_queue):
 def get_stack_dump():
     id2name = dict([(th.ident, th.name) for th in threading_enumerate()])
     code = ["Stack dump:"]
-    for threadId, stack in sys._current_frames().items():
+    for threadId, stack in list(sys._current_frames().items()):
         code.append("")
         code.append("# Thread: %s(%d)" % (id2name.get(threadId,""), threadId))
         for filename, lineno, name, line in traceback.extract_stack(stack):
@@ -243,6 +243,24 @@ signal.signal(signal.SIGTERM, handle_sigterm)
 # Also dump on sigusr1, but do not terminate
 signal.signal(signal.SIGUSR1, handle_sigusr1)
 
+
+# MA - Decode using UTF-8, falling back to iso-8859-2 and cp1250 if needed
+def decode_output(stdout):
+    if stdout is None:
+        return ""
+    
+    if isinstance(stdout, str):
+        return stdout
+    
+    try: 
+        return stdout.decode("utf-8")
+    except UnicodeDecodeError:
+        return "".join(
+            chr(b) if b < 128 else "<{:02X}>".format(b)
+            for b in stdout
+        )
+
+
 def execute_command(cmd, ignore_errors=False, direct_io=False, cwd=None, silent_errors=False):
     '''
     Execute the command `cmd` specified as a list of ['program', 'arg', ...]
@@ -260,17 +278,19 @@ def execute_command(cmd, ignore_errors=False, direct_io=False, cwd=None, silent_
         else:
             pipe = Popen(cmd, stdout=PIPE, stderr=PIPE, cwd=cwd)
         stdout, stderr = pipe.communicate()
+        stdout = decode_output(stdout)
+        stderr = decode_output(stderr)
     except OSError:
         log.error("Error executing command {}!".format(jcmd))
         raise
 
     if pipe.returncode != 0:
         if ignore_errors:
-            if not(silent_errors):
+            if not silent_errors:
                 log.warning("Command '{}' failed with exit code {}. Ignored.".
                             format(jcmd, pipe.returncode))
         else:
-            if not(direct_io) and not(silent_errors):
+            if not direct_io and not silent_errors:
                 log.info("Command '{}' stdout:".format(jcmd))
                 for line in stdout.splitlines():
                     log.info(line)
@@ -280,10 +300,14 @@ def execute_command(cmd, ignore_errors=False, direct_io=False, cwd=None, silent_
             msg = "Command '{}' failed with exit code {}. \n" \
                   "(stdout: {}\nstderr: {})"\
                   .format(jcmd, pipe.returncode, stdout, stderr)
-            if not(silent_errors):
+            if not silent_errors:
                 log.error(msg)
             raise Exception(msg)
-    return stdout
+    if stdout is not None:
+        return decode_output(stdout)
+
+    return ""
+
 
 def _convert_dot_file(dotfile):
     '''
@@ -339,13 +363,15 @@ def generate_report(start_rev, end_rev, resdir):
     log.devinfo("  -> Generating report")
     report_base = "report-{0}_{1}".format(start_rev, end_rev)
 
-    # Run perl script to generate report LaTeX file
-    cmd = []
-    cmd.append(resource_filename(__name__, "perl/create_report.pl"))
-    cmd.append(resdir)
-    cmd.append("{0}--{1}".format(start_rev, end_rev))
-    with open(os.path.join(resdir, report_base + ".tex"), 'w') as f:
-        f.write(execute_command(cmd))
+    ref = importlib_resources.files(__name__) / "perl/create_report.pl"
+    with importlib_resources.as_file(ref) as dir:
+        # Run perl script to generate report LaTeX file
+        cmd = []
+        cmd.append(dir)
+        cmd.append(resdir)
+        cmd.append("{0}--{1}".format(start_rev, end_rev))
+        with open(os.path.join(resdir, report_base + ".tex"), 'w') as f:
+            f.write(execute_command(cmd))
 
     # Compile report with lualatex
     cmd = []
@@ -456,99 +482,64 @@ def get_analysis_windows(conf):
     window_size_months = 3
     num_window = -1
 
-    if "windowSize" in conf.keys():
+    if "windowSize" in list(conf.keys()):
         window_size_months = conf["windowSize"]
-    if "numWindows" in conf.keys():
+    if "numWindows" in list(conf.keys()):
         num_window = conf["numWindows"]
+
+    if num_window != -1 and (not isinstance(num_window, int) or num_window < 1):
+        raise ValueError("numWindows must be -1 (all windows) or a positive integer")
 
     return window_size_months, num_window
 
 def generate_analysis_windows(repo, window_size_months):
+    """Return chronological boundaries anchored at the earliest root commit.
+
+    A month remains 30 days for compatibility. Empty windows are collapsed,
+    and HEAD closes the final (possibly shorter) window.
     """
-    Generates a list of revisions (commit hash) in increments of the window_size
-    parameter. The window_size parameter specifies the number of months between
-    revisions. This function is useful when the git repository has no tags
-    referencing releases.
-    """
-    cmd_date = 'git --git-dir={0} show --format=%ad  --date=iso8601'\
-        .format(repo).split()
-    latest_date_result = execute_command(cmd_date).splitlines()[0]
-    latest_commit = parse_iso_git_date(latest_date_result)
+    if window_size_months <= 0:
+        raise ValueError("windowSize must be greater than zero")
 
-    cmd_root_commit_dates = 'git --git-dir={0} log --max-parents=0 --format=%ad  --date=iso8601'\
-        .format(repo).split()
-    root_commit_dates_result = execute_command(cmd_root_commit_dates).splitlines()
-    earliest_root_commit_date = min([parse_iso_git_date(root_commit) for root_commit in root_commit_dates_result])
+    cmd_base = ['git', '--git-dir=' + repo, 'log', '--format=%H,%ct,%ci']
+    latest = execute_command(cmd_base + ['--max-count=1', 'HEAD']).splitlines()[0]
+    roots = execute_command(cmd_base + ['--max-parents=0', 'HEAD']).splitlines()
+    earliest = min(roots, key=lambda rev: int(rev.split(',')[1]))
+    first_time = int(earliest.split(',')[1])
+    last_time = int(latest.split(',')[1])
+    step = timedelta(days=30 * window_size_months).total_seconds()
+    boundary = first_time + step
+    revs = [earliest]
 
-    print_fmt = "%Y-%m-%dT%H:%M:%S+0000"
-    month = timedelta(days=30)
+    while boundary < last_time:
+        before = datetime.utcfromtimestamp(boundary).strftime('%Y-%m-%dT%H:%M:%S+0000')
+        candidates = execute_command(cmd_base + [
+            '--no-merges', '--max-count=1', '--before=' + before, 'HEAD'
+        ]).splitlines()
+        if candidates and int(candidates[0].split(',')[1]) > int(revs[-1].split(',')[1]):
+            revs.append(candidates[0])
+        boundary += step
 
-    def get_before_arg(num_months):
-        date = latest_commit - num_months * month
+    if latest.split(',')[0] != revs[-1].split(',')[0]:
+        revs.append(latest)
+    if len(revs) < 2 or last_time < first_time:
+        raise ValueError("The repository must contain at least two commits with ordered boundary dates")
 
-        # Due to a bug in git, broken author information in commit objects can lead to a timestamp of 0 when using the
-        # --before option although the dates themselves are not broken and can be parsed without problems.
-        # For more details, see the whole thread conversation on the git mailing list here:
-        # https://lore.kernel.org/git/7728e059-d58d-cce7-c011-fbc16eb22fb9@cs.uni-saarland.de/
-        # To avoid running into an infinite while loop below (due to timestamps being 0), check if the date is earlier
-        # than the date of the earliest root commit and break if this is the case.
-        if date < earliest_root_commit_date:
-            raise ValueError("The before-arg date is earlier than the earliest commit in the repository.")
+    revs = [rev.split(',') for rev in revs]
+    return ([rev[0] for rev in revs], [None] * len(revs),
+            [rev[2].split(' ')[0] for rev in revs])
 
-        return '--before=' + date.strftime(print_fmt)
 
-    revs = []
-    start = window_size_months  # Window size time ago
-    end = 0  # Present time
-    cmd_base = 'git --git-dir={0} log --no-merges --format=%H,%ct,%ci'\
-        .format(repo).split()
-    cmd_base_max1 = cmd_base + ['--max-count=1']
-    cmd = cmd_base_max1 + [get_before_arg(end)]
-    rev_end = execute_command(cmd).splitlines()
-    revs.extend(rev_end)
-
-    while start != end:
-
+def decode_legacy_byte_marker(match):
+    byte = bytes([int(match.group(1), 16)])
+    for encoding in ("iso-8859-2", "cp1250"):
         try:
-            cmd = cmd_base_max1 + [get_before_arg(start)]
-            rev_start = execute_command(cmd).splitlines()
-        except ValueError as ve:
-            rev_start = []
-            log.info("rev_start would be earlier than earliest root commit. Start at initial commit instead...")
+            return byte.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    return match.group(0)
 
-        if len(rev_start) == 0:
-            start = end
-            #cmd = cmd_base + ['--reverse']
-            #rev_start = [execute_command(cmd).splitlines()[0]]
-            cmd = cmd_base + ['--max-parents=0']
-            rev_start = [execute_command(cmd).splitlines()[-1]]
-        else:
-            end = start
-            start = end + window_size_months
 
-        # Check if any commits occurred since the last analysis window
-        if rev_start[0] != revs[0]:
-            revs = rev_start + revs
-        # else: no commit happened since last window, don't add duplicate
-        #       revisions
-    # End while
-
-    # Check that commit dates are monotonic, in some cases the earliest
-    # first commit does not carry the earliest commit date
-    revs = [rev.split(",") for rev in revs]
-    rev_len = len(revs)
-    if int(revs[0][1]) > int(revs[1][1]):
-      del revs[0]
-
-    # Extract hash values and dates intro seperate lists
-    revs_hash = [rev[0] for rev in revs]
-    revs_date = [rev[2].split(" ")[0] for rev in revs]
-
-    # We cannot detect release canndidate tags in this analysis mode,
-    # so provide a list with None entries
-    rcs = [None for x in range(len(revs))]
-
-    return revs_hash, rcs, revs_date
 
 
 def encode_as_utf8(string):
@@ -562,28 +553,31 @@ def encode_as_utf8(string):
     :param string: any string
     :return: the UTF-8 encoded string of type str
     """
-
-    try:
-        string = string.decode("utf-8")
-    except:
-        # if we have a string, we transform it to unicode
-        if isinstance(string, str):
-            string = unicode(string, "unicode-escape", errors="replace")
-
-    ## maybe not a string/unicode at all, return rightaway
-    if not isinstance(string, unicode):
+    
+    # Normalize to str first
+    if isinstance(string, bytes):
+        try:
+            text = string.decode("utf-8")
+        except UnicodeDecodeError:
+            text = string.decode("utf-8", errors="replace")
+    elif isinstance(string, str):
+        text = string
+    else:
+        # not string-like, return as-is
         return string
 
+    text = re.sub(r"(?<=[A-Za-z])<([0-9A-Fa-f]{2})>(?=[A-Za-z])", decode_legacy_byte_marker, text)
+    
     # convert to real unicode-utf8 encoded string, fix_text ensures proper encoding
-    new_string = fix_encoding(string)
+    new_string = fix_encoding(text)
 
     # remove unicode characters from "Specials" block
     # see: https://www.compart.com/en/unicode/block/U+FFF0
-    new_string = re.sub(r"\\ufff.", " ", new_string.encode("unicode-escape"))
+    new_string = re.sub(r"[\ufff0-\uffff]", " ", new_string)
 
     # remove all kinds of control characters and emojis
     # see: https://www.fileformat.info/info/unicode/category/index.htm
-    new_string = u"".join(ch if unicodedata.category(ch)[0] != "C" else " " for ch in new_string.decode("unicode-escape"))
+    new_string = u"".join(ch if unicodedata.category(ch)[0] != "C" else " " for ch in new_string)
 
     new_string = new_string.encode("utf-8")
 
@@ -598,7 +592,7 @@ def encode_as_utf8(string):
     four_byte_replacement = r" "  # r":4bytereplacement:"
     new_string = four_byte_regex.sub(four_byte_replacement, new_string.decode("utf-8")).encode("utf-8")
 
-    return str(new_string)
+    return new_string.decode("utf-8")
 
 
 def encode_items_as_utf8(items):
@@ -615,13 +609,13 @@ def encode_items_as_utf8(items):
     # unpack values if we have a dictionary
     items_unpacked = items
     if isinstance(items, dict):
-        items_unpacked = items.values()
+        items_unpacked = list(items.values())
 
     # encode each item as UTF-8 properly
-    items_enc = map(encode_as_utf8, items_unpacked)
+    items_enc = list(map(encode_as_utf8, items_unpacked))
 
     # add key for dict again
     if isinstance(items, dict):
-        items_enc = dict(zip(items.keys(), items_enc))
+        items_enc = dict(list(zip(list(items.keys()), items_enc)))
 
     return items_enc

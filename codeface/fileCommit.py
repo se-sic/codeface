@@ -20,7 +20,6 @@ The analysis is performed on a file by file basis. A commit can touch multiple
 files however this class considers a given commit only in the context of a
 single file.'''
 
-import commit
 import bisect
 
 
@@ -86,7 +85,7 @@ class FileDict:
         self.line_dict[line_nr] = info
 
     def values(self):
-        return self.line_dict.values()
+        return list(self.line_dict.values())
 
 
 class FileCommit:
@@ -136,7 +135,7 @@ class FileCommit:
         return self.fileSnapShots
 
     def getFileSnapShot(self):
-        return self.fileSnapShots.values()[0]
+        return list(self.fileSnapShots.values())[0]
 
     def getFilename(self):
         return self.filename
@@ -155,9 +154,9 @@ class FileCommit:
 
     def setFunctionLines(self, functionIds):
         self.functionIds.update(functionIds)
-        for id in self.functionIds.values():
+        for id in list(self.functionIds.values()):
             self.functionImpl.update({id:[]})
-        self.functionLineNums.extend(sorted(self.functionIds.iterkeys()))
+        self.functionLineNums.extend(sorted(self.functionIds.keys()))
 
     def setSrcElems(self, src_elem_list):
         self._src_elem_list.extend(src_elem_list)
@@ -193,7 +192,7 @@ class FileCommit:
         return len(self.getFileSnapShot())
 
     def getIndx(self):
-        return self.getFileSnapShot().keys()
+        return list(self.getFileSnapShot().keys())
 
     def addFuncImplLine(self, lineNum, srcLine):
         id = self.findFuncId(lineNum)

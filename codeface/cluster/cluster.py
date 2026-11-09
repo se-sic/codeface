@@ -19,44 +19,42 @@
 # Copyright 2012, 2013, Siemens AG, Wolfgang Mauerer <wolfgang.mauerer@siemens.com>
 # All Rights Reserved.
 import os
-import csv
-import shelve
 import pickle
 import os.path
-import argparse
-import codeBlock
-import codeLine
+import codeface.cluster.codeBlock as codeBlock
+import codeface.cluster.codeLine as codeLine
+
 import math
 import random
 import itertools
 from progressbar import ProgressBar, Percentage, Bar, ETA
-from logging import getLogger; log = getLogger(__name__)
+from logging import getLogger
+log = getLogger(__name__)
 
-from codeface import kerninfo
-from codeface.commit_analysis import (getSignoffCount, getSignoffEtcCount,
-        getInvolvedPersons)
-from codeface.cluster.PersonInfo import RelationWeight
-from codeface.VCS import gitVCS
-from codeface.dbmanager import DBManager, tstamp_to_sql
+from ..commit_analysis import (getSignoffCount, getSignoffEtcCount, getInvolvedPersons)
+from .PersonInfo import RelationWeight
+from ..VCS import gitVCS
+from ..dbmanager import DBManager, tstamp_to_sql
 from .PersonInfo import PersonInfo
 from .idManager import idManager
-from codeface.linktype import LinkType
-from codeface.util import encode_as_utf8
+from ..linktype import LinkType
+from ..util import encode_as_utf8
 
 #Global Constants
 SEED = 448
 
 
 def createDB(filename, git_repo, revrange, subsys_descr, link_type,
-             range_by_date, rcranges=None):
+             range_by_date, rcranges=None, all_files=False):
     #------------------
     #configuration
     #------------------
-    git = gitVCS();
+    git = gitVCS()
     git.setRepository(git_repo)
     git.setRevisionRange(revrange[0], revrange[1])
     git.setSubsysDescription(subsys_descr)
     git.setRangeByDate(range_by_date)
+    git.setAllFiles(all_files)
 
     if rcranges != None:
         git.setRCRanges(rcranges)
@@ -96,7 +94,7 @@ def computeSubsysAuthorSimilarity(cmt_subsys, author):
     asf = author.getSubsysFraction()
 
     sim = 0
-    for (subsys_name, subsys_touched) in cmt_subsys.iteritems():
+    for (subsys_name, subsys_touched) in cmt_subsys.items():
         sim = max(sim, asf[subsys_name]*subsys_touched)
 
     if  sim > 1:
@@ -118,7 +116,7 @@ def computeAuthorAuthorSimilarity(auth1, auth2):
     count = 0
     sim = 0
 
-    for (subsys_name, fraction) in frac1.iteritems():
+    for (subsys_name, fraction) in frac1.items():
         if fraction != 0 and frac2[subsys_name] != 0:
             count += 1
             sim += fraction + frac2[subsys_name] # UB: 2
@@ -166,7 +164,7 @@ def computeSnapshotCollaboration(file_commit, cmtList, id_mgr, link_type,
         # check if commit is in the current revision of the file, if it is not
         # we no longer have a need to process further since the commit is now
         # irrelevant
-        if not(cmt.id in fileState_mod.values()):
+        if not(cmt.id in list(fileState_mod.values())):
             continue
 
         #find code lines of interest, these are the lines that are localized
@@ -224,7 +222,7 @@ def compute_snapshot_collaboration_features(
         # check if commit is in the current revision of the file, if it is
         # not we no longer have a need to process further since the commit
         # is now irrelevant
-        if not (cmt.id in file_state_mod.values()):
+        if not (cmt.id in list(file_state_mod.values())):
             continue
 
         # find code lines of interest, these are the lines that are
@@ -272,11 +270,11 @@ def groupFuncLines(file_commit, file_state, cmtList):
     func_indx = {}
     indx      = 0
     func_blks = []
-    lines     = sorted( map( int, file_state.keys() ) )
+    lines     = sorted( map( int, list(file_state.keys()) ) )
     blk_start = lines[0]
     blk_end   = blk_start
 
-    for func_id in file_commit.functionIds.values():
+    for func_id in list(file_commit.functionIds.values()):
         func_indx[func_id] = indx
         func_blks.append([])
         indx += 1
@@ -316,13 +314,13 @@ def group_feature_lines(file_commit, file_state, cmt_list):
     cluster code lines that fall under the same feature
     """
     feature_blks = {}
-    lines = sorted(map(int, file_state.keys()))
+    lines = sorted(map(int, list(file_state.keys())))
     blk_start = {}
     blk_end = {}
 
     curr_features = []
     if lines:
-        for features in file_commit.feature_info.values():
+        for features in list(file_commit.feature_info.values()):
             for feature in features:
                 blk_start[feature] = lines[0]
                 blk_end[feature] = lines[0]
@@ -408,7 +406,7 @@ def randomizeCommitCollaboration(codeBlks, fileState):
 
     #get number of lines of code in the file
     fileLen = len(fileState)
-    codeLineNum = range(1, fileLen + 1)
+    codeLineNum = list(range(1, fileLen + 1))
 
     #randomly sample the code blocks
     codeBlksRand = random.sample(codeBlks, len(codeBlks))
@@ -776,7 +774,7 @@ def removePriorCommits(fileState, clist, startDate):
     #variable declarations
     modFileState = {}
 
-    for (lineNum, cmtId) in fileState.items():
+    for (lineNum, cmtId) in list(fileState.items()):
 
         if cmtId in clist:
             #get commit object containing commit date
@@ -808,8 +806,8 @@ def linesOfInterest(fileState, snapShotCommit, maxDist, cmtlist, file_commit):
     modFileState: the file state after line not of interest are removed
     '''
     #variable declarations
-    fileMaxLine = int(max(fileState.keys(), key=int))
-    fileMinLine = int(min(fileState.keys(), key=int))
+    fileMaxLine = int(max(list(fileState.keys()), key=int))
+    fileMinLine = int(min(list(fileState.keys()), key=int))
     snapShotCmtDate = cmtlist[snapShotCommit].getCdate()
     linesSet    = set()
     modFileState = {}
@@ -818,7 +816,7 @@ def linesOfInterest(fileState, snapShotCommit, maxDist, cmtlist, file_commit):
     #take a pass over the fileState to identify where the snapShotCommit
     #made contributions to the fileState
     snapShotCmtLines = []
-    for lineNum in fileState.keys():
+    for lineNum in list(fileState.keys()):
 
         cmtId = fileState[lineNum]
 
@@ -829,7 +827,7 @@ def linesOfInterest(fileState, snapShotCommit, maxDist, cmtlist, file_commit):
     #end for line
 
     # remove lines that are from commits that occur after the snapShotCmt
-    for lineNum, cmtId in fileState.items():
+    for lineNum, cmtId in list(fileState.items()):
         if cmtId in cmtlist:
             cmtDate = cmtlist[cmtId].getCdate()
         else:
@@ -880,7 +878,7 @@ def lines_of_interest_features(file_state, snapshot_commit, cmt_list,
     #take a pass over the fileState to identify where the snapShotCommit
     #made contributions to the fileState
     snapshot_cmt_lines = []
-    for lineNum in file_state.keys():
+    for lineNum in list(file_state.keys()):
         cmt_id = file_state[lineNum]
 
         if snapshot_commit is None or cmt_id == snapshot_commit:
@@ -891,7 +889,7 @@ def lines_of_interest_features(file_state, snapshot_commit, cmt_list,
     #end for line
 
     # remove lines that are from commits that occur after the snapShotCmt
-    for lineNum, cmt_id in file_state.items():
+    for lineNum, cmt_id in list(file_state.items()):
         if cmt_id in cmt_list:
             cmt_date = cmt_list[cmt_id].getCdate()
         else:
@@ -956,7 +954,7 @@ def findCodeBlocks(fileState, cmtList, author=False):
     #find out who is responsible (unique ID) for each line
     #of code for the file snapshot
     #------------------------------------------------------
-    for (key, cmtId) in fileState.items():
+    for (key, cmtId) in list(fileState.items()):
 
        lineNum = int(key)
 
@@ -972,7 +970,7 @@ def findCodeBlocks(fileState, cmtList, author=False):
     #find contiguous lines
     #------------------------
     #TODO: check if sorting is actually necessary (in most cases I presume not)
-    lineNums = sorted( map( int, fileState.keys() ) )
+    lineNums = sorted( map( int, list(fileState.keys()) ) )
 
     blkStart   = lineNums[0]
     blkEnd     = lineNums[0]
@@ -1051,7 +1049,7 @@ def createStatisticalData(cmtlist, id_mgr, link_type):
 
     # Now that all information on tags is available, compute the normalised
     # statistics. While at it, also compute the per-author commit summaries.
-    for (key, person) in id_mgr.getPersons().iteritems():
+    for (key, person) in id_mgr.getPersons().items():
             person.computeCommitStats()
             person.computeStats(link_type)
 
@@ -1152,7 +1150,7 @@ def writeSubsysPerAuthorData2File(id_mgr, outdir):
         for subsys in id_mgr.getSubsysNames() + ["general"]:
             outstr += "\t{0}".format(subsys_fraction[subsys])
         lines.append(outstr)
-    out = open(os.path.join(outdir, "id_subsys.txt"), 'wb')
+    out = open(os.path.join(outdir, "id_subsys.txt"), 'w')
     out.writelines(lines)
     out.close()
 
@@ -1240,7 +1238,7 @@ def writeDependsToDB(
                                 for indx, impl in enumerate(depend_impl_list)]
 
                 # construct rows to be put in DB
-                rows = [(key, file, encode_as_utf8(entityId), entity_type_current, count, impl)
+                rows = [(key, file, encode_as_utf8(entityId), entity_type_current, count, encode_as_utf8(impl))
                         for file, entityId, count, impl in depends_list]
                 cmt_depend_rows.extend(rows)
 
@@ -1280,7 +1278,7 @@ def writeAdjMatrix2File(id_mgr, outdir, conf):
     # off to utilise this fact for more efficient storage.
 
     link_type = conf["tagging"]
-    out = open(os.path.join(outdir, "adjacencyMatrix.txt"), 'wb')
+    out = open(os.path.join(outdir, "adjacencyMatrix.txt"), 'w')
     idlist = sorted(id_mgr.getPersons().keys())
     # Header
     out.write("" +
@@ -1321,7 +1319,7 @@ def writeAdjMatrixMaxWeight2File(id_mgr, outdir, conf):
     # off to utilise this fact for more efficient storage.
 
     link_type = conf["tagging"]
-    out = open(os.path.join(outdir, "adjacencyMatrix_max_weight.txt"), 'wb')
+    out = open(os.path.join(outdir, "adjacencyMatrix_max_weight.txt"), 'w')
     idlist = sorted(id_mgr.getPersons().keys())
     # Header
     out.write("" +
@@ -1441,7 +1439,7 @@ def computeLogicalDepends(fileCommit_list, cmt_dict, start_date):
     '''
 
     func_depends_count = {}
-    for file in fileCommit_list.values():
+    for file in list(fileCommit_list.values()):
       func_depends = {}
       filename = file.getFilename()
       idx = file.getIndx()
@@ -1464,7 +1462,7 @@ def computeLogicalDepends(fileCommit_list, cmt_dict, start_date):
       # Compute the number of lines of code changed for each dependency.
       # We captured the function dependency on a line by line basis above
       # now we aggregate the lines that change one function
-      for cmt_id, depend_list in func_depends.iteritems():
+      for cmt_id, depend_list in func_depends.items():
           for func_id, group in itertools.groupby(sorted(depend_list)):
               func_depends_count[cmt_id].extend([(func_id, len(list(group)))])
 
@@ -1497,7 +1495,7 @@ def compute_logical_depends_features(file_commit_list, cmt_dict, start_date):
 
     feature_depends_count = {}
     fexpr_depends_count = {}
-    for file in file_commit_list.values():
+    for file in list(file_commit_list.values()):
         feature_depends = {}
         fexpr_depends = {}
         filename = file.getFilename()
@@ -1532,13 +1530,13 @@ def compute_logical_depends_features(file_commit_list, cmt_dict, start_date):
         # Compute the number of lines of code changed for each dependency.
         # We captured the function dependency on a line by line basis above
         # now we aggregate the lines that change one function
-        for cmt_id, depend_list in feature_depends.iteritems():
+        for cmt_id, depend_list in feature_depends.items():
             feature_depends_count[cmt_id].extend(
                 [(feature_id, len(list(group)))
                     for feature_id, group in itertools.groupby(sorted(depend_list))])
 
         # Same for feature expressions
-        for cmt_id, depend_list in fexpr_depends.iteritems():
+        for cmt_id, depend_list in fexpr_depends.items():
             fexpr_depends_count[cmt_id].extend(
                  [(feature_id, len(list(group)))
                     for feature_id, group in itertools.groupby(sorted(depend_list))]
@@ -1560,7 +1558,7 @@ def computeProximityLinks(fileCommitList, cmtList, id_mgr, link_type, \
     Collaboration is quantified by a single metric indicating the
     strength of collaboration between two individuals.
     '''
-    for fileCommit in fileCommitList.values():
+    for fileCommit in list(fileCommitList.values()):
 
         if speedUp:
             computeSnapshotCollaboration(fileCommit, cmtList, id_mgr, link_type,
@@ -1569,7 +1567,7 @@ def computeProximityLinks(fileCommitList, cmtList, id_mgr, link_type, \
             [computeSnapshotCollaboration(fileSnapShot[1], [fileSnapShot[0]],
                                     cmtList, id_mgr, link_type, startDate)
                                     for fileSnapShot
-                                    in fileCommit.getFileSnapShots().items()]
+                                    in list(fileCommit.getFileSnapShots().items())]
 
 
 def compute_feature_proximity_links_per_file(
@@ -1585,12 +1583,12 @@ def compute_feature_proximity_links_per_file(
     Collaboration is quantified by a single metric indicating the
     strength of collaboration between two individuals.
     '''
-    for file_commit in file_commit_list.values():
+    for file_commit in list(file_commit_list.values()):
         if speed_up:
             compute_snapshot_collaboration_features(
                 file_commit, cmt_list, id_mgr, link_type, start_date)
         else:
-            for fileSnapShot in file_commit.getFileSnapShots().items():
+            for fileSnapShot in list(file_commit.getFileSnapShots().items()):
                 compute_snapshot_collaboration_features(
                     fileSnapShot[1], [fileSnapShot[0]], cmt_list, id_mgr,
                     link_type, start_date)
@@ -1618,7 +1616,7 @@ def compute_feature_proximity_links(
     # feature
     author_feature_changes = {}
 
-    for file_commit in file_commit_list.values():
+    for file_commit in list(file_commit_list.values()):
         author = True
         file_state = file_commit.getFileSnapShot()
         rev_cmt_ids = file_commit.getrevCmts()
@@ -1650,7 +1648,7 @@ def compute_feature_proximity_links(
             # check if commit is in the current revision of the file, if
             # it is not we no longer have a need to process further since
             # the commit is now irrelevant
-            if not (cmt.id in file_state_mod.values()):
+            if not (cmt.id in list(file_state_mod.values())):
                 continue
 
             # We now have a 'feature -> codeblock list' mapping
@@ -1827,7 +1825,7 @@ def computeSimilarity(cmtlist):
         atsim = 0 # Author-tagger similarity
         tssim = 0 # Tagger-subsys similarity
 
-        for (key, pi_list) in cmt.getTagPIs().iteritems():
+        for (key, pi_list) in cmt.getTagPIs().items():
             for pi in pi_list:
                 count += 1
                 atsim += computeAuthorAuthorSimilarity(author_pi, pi)
@@ -1854,7 +1852,7 @@ def performAnalysis(conf, dbm, dbfilename, git_repo, revrange, subsys_descr,
         log.devinfo("Creating data base for {0}..{1}".format(revrange[0],
                                                         revrange[1]))
         createDB(dbfilename, git_repo, revrange, subsys_descr, \
-                 link_type, range_by_date, rcranges)
+                 link_type, range_by_date, rcranges, all_files=conf.get("all_files", False))
     else:
         log.warning("REUSING data base for {0}..{1} "
                     "(make sure it is up to date)"
@@ -1885,10 +1883,10 @@ def performAnalysis(conf, dbm, dbfilename, git_repo, revrange, subsys_descr,
     #Fill person Database
     #---------------------------------
     id_mgr = idManager(dbm, conf)
-    populatePersonDB(cmtdict.values(), id_mgr, link_type)
+    populatePersonDB(list(cmtdict.values()), id_mgr, link_type)
 
     if subsys_descr != None:
-        id_mgr.setSubsysNames(subsys_descr.keys())
+        id_mgr.setSubsysNames(list(subsys_descr.keys()))
 
     logical_depends = (None)
     entity_type = ("Function", )

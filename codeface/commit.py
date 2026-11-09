@@ -18,7 +18,7 @@
 # Copyright 2010, 2011, 2012 by Wolfgang Mauerer <wm@linux-kernel.net>
 # All Rights Reserved.
 
-from codeface.util import encode_as_utf8
+from .util import encode_as_utf8
 
 
 class Commit:

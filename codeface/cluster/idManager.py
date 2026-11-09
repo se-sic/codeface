@@ -16,11 +16,11 @@
 # All Rights Reserved.
 
 import re
-from email.Utils import parseaddr
-from PersonInfo import PersonInfo
+from email.utils import parseaddr
+from .PersonInfo import PersonInfo
 from logging import getLogger; log = getLogger(__name__)
-import httplib
-import urllib
+import http.client
+import urllib.request, urllib.parse, urllib.error
 import json
 import string
 import random
@@ -30,9 +30,8 @@ from ..util import encode_as_utf8
 class idManager:
     """Provide unique IDs for developers.
 
-    This class provides an interface to the REST id server. Heuristics to
-    detect developers who operate under multiple identities are included
-    in the server."""
+    Uses the REST ID server for lookups and inserts. Its identity-merging
+    heuristics can be disabled with skip_identity_merging."""
 
     def __init__(self, dbm, conf):
         self.subsys_names = []
@@ -52,7 +51,8 @@ class idManager:
 
         self._idMgrServer = conf["idServiceHostname"]
         self._idMgrPort = conf["idServicePort"]
-        self._conn = httplib.HTTPConnection(self._idMgrServer, self._idMgrPort)
+        self._skip_identity_merging = conf.get("skip_identity_merging", False)
+        self._conn = http.client.HTTPConnection(self._idMgrServer, self._idMgrPort)
 
         # Create a project ID
         self._dbm = dbm
@@ -128,9 +128,10 @@ class idManager:
         """Query the ID database for a contributor ID"""
 
         name = encode_as_utf8(name)
-        params = urllib.urlencode({'projectID': self._projectID,
-                                   'name': name,
-                                   'email': email})
+        fields = {'projectID': self._projectID, 'name': name, 'email': email}
+        if self._skip_identity_merging:
+            fields['skipIdentityMerging'] = 'true'
+        params = urllib.parse.urlencode(fields)
 
         try:
             self._conn.request("POST", "/post_user_id", params, self.headers)
@@ -142,7 +143,7 @@ class idManager:
                 log.warning("Could not reach ID service. Try to reconnect " \
                             "(attempt {}).".format(retryCount));
                 self._conn.close()
-                self._conn = httplib.HTTPConnection(self._idMgrServer, self._idMgrPort)
+                self._conn = http.client.HTTPConnection(self._idMgrServer, self._idMgrPort)
                 time.sleep(60)
                 #self._conn.ping(True)
                 try:
@@ -184,7 +185,7 @@ class idManager:
 
         # Construct a local instance of PersonInfo for the contributor
         # if it is not yet available
-        if not self.persons.has_key(ID):
+        if ID not in self.persons:
             self.persons[ID] = PersonInfo(self.subsys_names, ID, name, email)
 
         return ID
@@ -197,14 +198,14 @@ class idManager:
             res = self._conn.getresponse()
         except:
             self._conn.close()
-            self._conn = httplib.HTTPConnection(self._idMgrServer, self._idMgrPort)
+            self._conn = http.client.HTTPConnection(self._idMgrServer, self._idMgrPort)
             retryCount = 0
             successful = False
             while (retryCount <= 10 and not successful):
                 log.warning("Could not reach ID service. Try to reconnect " \
                             "(attempt {}).".format(retryCount));
                 self._conn.close()
-                self._conn = httplib.HTTPConnection(self._idMgrServer, self._idMgrPort)
+                self._conn = http.client.HTTPConnection(self._idMgrServer, self._idMgrPort)
                 time.sleep(60)
                 #self._conn.ping(True)
                 try:
@@ -235,6 +236,6 @@ class idManager:
         # to cause parsing problems in later stages
         name = name.replace('\"', "")
         name = name.replace("\'", "")
-        name = string.lstrip(string.rstrip(name))
+        name = name.lstrip().rstrip()
 
         return name

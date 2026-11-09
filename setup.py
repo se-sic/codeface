@@ -16,6 +16,8 @@
 # Copyright 2013 by Siemens AG, Johannes Ebke <johannes.ebke.ext@siemens.com>
 # All Rights Reserved.
 
+# TODO: update version number (not necessarily now, could be later) and update url to se-sic
+
 from setuptools import setup, find_packages
 
 setup(name='codeface',
@@ -27,6 +29,6 @@ setup(name='codeface',
       packages=find_packages(exclude=['experiments']),
       package_data={'codeface': ['R/*.r', 'R/cluster/*.r', 'perl/*.pl']},
       entry_points={'console_scripts': ['codeface = codeface.cli:main']},
-      install_requires=['progressbar', 'VCS', 'python-ctags3','PyYAML',
+      install_requires=['progressbar', 'python-ctags3','PyYAML',
                         'mysqlclient', 'jira', 'ftfy<5']
       )

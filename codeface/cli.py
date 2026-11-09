@@ -22,14 +22,13 @@ Provides
 import argparse
 import unittest
 import os
-from pkg_resources import resource_filename
+from importlib import resources as importlib_resources
 
 from glob import glob
 
-from codeface.logger import set_log_level, start_logfile, log
-from codeface.configuration import Configuration
-from codeface.util import execute_command
-from codeface.project import project_analyse, mailinglist_analyse, conway_analyse
+from . import logger
+from .util import execute_command
+from .project import project_analyse, mailinglist_analyse, conway_analyse
 
 def get_parser():
     parser = argparse.ArgumentParser(prog='codeface',
@@ -72,6 +71,8 @@ def get_parser():
                         help="Skip LaTeX report generation (and dot compilation)")
     run_parser.add_argument('--recreate', action="store_true",
                         help="Force a delete of the project in the database")
+    run_parser.add_argument('--skip-identity-merging', action='store_true',
+                        help="Use the ID service without merging distinct name/email pairs")
     run_parser.add_argument('--profile-r', action="store_true",
                         help="Compute an execution time profile for R code")
     run_parser.add_argument(
@@ -79,7 +80,17 @@ def get_parser():
         help="Re-use an already existing vcs-analysis.db file. "
              "This flag is useful to continue a previously failed analysis"
              " or for debugging purposes.")
-
+    run_parser.add_argument(
+        '--incremental', action='store_true',
+        help="Skip successfully analysed ranges with unchanged settings. "
+             "Rebuild new, changed or incomplete ranges; refresh global summaries.")
+    run_parser.add_argument(
+        '--all-files', action='store_true', dest="all_files",
+        help="Include all files touched by commits in the analysis, "
+             "bypassing the built-in source-file extension filter. "
+             "By default only known source-code extensions are included.") 
+    
+    
     ml_parser = sub_parser.add_parser('ml', help='Run mailing list analysis')
     ml_parser.set_defaults(func=cmd_ml)
     ml_parser.add_argument('-c', '--config', help="Codeface configuration file",
@@ -119,21 +130,22 @@ def get_parser():
 def cmd_run(args):
     '''Dispatch the ``run`` command.'''
     # First make all the args absolute
-    resdir, gitdir = map(os.path.abspath, (args.resdir, args.gitdir))
-    codeface_conf, project_conf = map(os.path.abspath, (args.config, args.project))
+    resdir, gitdir = list(map(os.path.abspath, (args.resdir, args.gitdir)))
+    codeface_conf, project_conf = list(map(os.path.abspath, (args.config, args.project)))
     logfile = args.logfile
     if logfile:
         logfile = os.path.abspath(logfile)
     project_analyse(resdir, gitdir, codeface_conf, project_conf,
                     args.no_report, args.loglevel, logfile, args.recreate,
-                    args.profile_r, args.jobs, args.tagging, args.reuse_db)
+                    args.profile_r, args.jobs, args.tagging, args.reuse_db,
+                    args.all_files, args.incremental, args.skip_identity_merging)
     return 0
 
 def cmd_ml(args):
     '''Dispatch the ``ml`` command.'''
     # First make all the args absolute
-    resdir, mldir = map(os.path.abspath, (args.resdir, args.mldir))
-    codeface_conf, project_conf = map(os.path.abspath, (args.config, args.project))
+    resdir, mldir = list(map(os.path.abspath, (args.resdir, args.mldir)))
+    codeface_conf, project_conf = list(map(os.path.abspath, (args.config, args.project)))
     logfile = args.logfile
     if logfile:
         logfile = os.path.abspath(logfile)
@@ -145,8 +157,8 @@ def cmd_ml(args):
 def cmd_conway(args):
     '''Dispatch the ``conway`` command.'''
     # First make all the args absolute
-    resdir, gitdir, titandir = map(os.path.abspath, (args.resdir, args.gitdir, args.titandir))
-    codeface_conf, project_conf = map(os.path.abspath, (args.config, args.project))
+    resdir, gitdir, titandir = list(map(os.path.abspath, (args.resdir, args.gitdir, args.titandir)))
+    codeface_conf, project_conf = list(map(os.path.abspath, (args.config, args.project)))
     logfile = args.logfile
     if logfile:
         logfile = os.path.abspath(logfile)
@@ -155,26 +167,27 @@ def cmd_conway(args):
     return 0
 
 def cmd_dynamic(args):
-    dyn_directory = resource_filename(__name__, "R/shiny/apps")
+    # dyn_directory = resource_filename(__name__, "R/shiny/apps")
+    ref = importlib_resources.files(__name__) / "R/shiny/apps"
+    with importlib_resources.as_file(ref) as dyn_directory:
+        if args.graph is None and not args.list:
+            logger.log.critical("No dynamic graph given!")
 
-    if args.graph is None and not(args.list):
-        log.critical("No dynamic graph given!")
+        if args.list or args.graph is None:
+            print('List of possible dynamic graphs:')
+            for s in sorted(os.listdir(dyn_directory)):
+                if os.path.isdir(os.path.join(dyn_directory, s)):
+                    print(" * " + s)
+            return 1
 
-    if args.list or args.graph is None:
-        print('List of possible dynamic graphs:')
-        for s in sorted(os.listdir(dyn_directory)):
-            if os.path.isdir(os.path.join(dyn_directory, s)):
-                print(" * " + s)
-        return 1
-
-    cwd = os.path.join(dyn_directory, args.graph)
-    cfg = os.path.abspath(args.config)
-    if not os.path.exists(cwd):
-        log.critical('Path "{}" not found!'.format(cwd))
-        return 1
-    Rcode = "library(shiny); runApp(host='0.0.0.0', port={})".format(args.port)
-    cmd = ["Rscript", "-e", Rcode, "-c", cfg]
-    execute_command(cmd, direct_io=True, cwd=cwd)
+        cwd = os.path.join(dyn_directory, args.graph)
+        cfg = os.path.abspath(args.config)
+        if not os.path.exists(cwd):
+            logger.log.critical('Path "{}" not found!'.format(cwd))
+            return 1
+        Rcode = "library(shiny); runApp(host='0.0.0.0', port={})".format(args.port)
+        cmd = ["Rscript", "-e", Rcode, "-c", cfg]
+        execute_command(cmd, direct_io=True, cwd=cwd)
 
 def cmd_test(args):
     '''Sub-command handler for the ``test`` command.'''
@@ -232,9 +245,9 @@ def run(argv):
     parser = get_parser()
     # Note: The first argument of argv is the name of the command
     args = parser.parse_args(argv[1:])
-    set_log_level(args.loglevel)
+    logger.set_log_level(args.loglevel)
     if args.logfile:
-        start_logfile(args.logfile, 'debug')
+        logger.start_logfile(args.logfile, 'debug')
     return args.func(args)
 
 def main():

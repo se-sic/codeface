@@ -21,9 +21,9 @@
 # Copyright 2010, 2011, 2012 by Wolfgang Mauerer <wm@linux-kernel.net>
 # All Rights Reserved.
 
-from TimeSeries import TimeSeries
-from logging import getLogger;
-from codeface.linktype import LinkType
+from .TimeSeries import TimeSeries
+from logging import getLogger
+from .linktype import LinkType
 
 log = getLogger(__name__)
 
@@ -155,7 +155,7 @@ def createSeries(vcs, subsys="__main__", revrange=None, rc_start=None):
 def getSignoffCount(cmt):
     """Get the number of people who signed a commit off."""
     tag_names_list = cmt.getTagNames()
-    if "Signed-off-by" in tag_names_list.keys():
+    if "Signed-off-by" in list(tag_names_list.keys()):
         signoffs = len(tag_names_list["Signed-off-by"])
     else:
         signoffs = 0
@@ -172,7 +172,7 @@ def getInvolvedPersons(cmt, categories):
 
     tag_names_list = cmt.getTagNames()
     for key in categories:
-        if key in tag_names_list.keys():
+        if key in list(tag_names_list.keys()):
             signoffs.extend(tag_names_list[key])
 
     return signoffs
@@ -184,7 +184,7 @@ def getSignoffEtcCount(cmt):
 
     tag_names_list = cmt.getTagNames()
     for key in LinkType.get_tag_types():
-        if key in tag_names_list.keys():
+        if key in list(tag_names_list.keys()):
             signoffs += len(tag_names_list[key])
 
     return signoffs

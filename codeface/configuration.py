@@ -20,9 +20,9 @@ Encapsulates a configuration as an immutable dict
 '''
 
 import yaml
-from collections import Mapping
-from logging import getLogger;
-from codeface.linktype import LinkType
+from collections.abc import Mapping
+from logging import getLogger
+from .linktype import LinkType
 
 log = getLogger(__name__)
 from tempfile import NamedTemporaryFile
@@ -59,7 +59,7 @@ class Configuration(Mapping):
                 'idServicePort' : 8080
                 }
 
-	self._conf_file_loc = None
+        self._conf_file_loc = None
 
     @classmethod
     def load(self, global_conffile, local_conffile=None):
@@ -85,7 +85,8 @@ class Configuration(Mapping):
     def _load(self, filename):
         '''Helper function that checks loading errors and logs them'''
         try:
-            return yaml.load(open(filename))
+            with open(filename) as config_file:
+                return yaml.safe_load(config_file)
         except IOError:
             log.exception("Could not open configuration file '{}'".
                     format(filename))
@@ -173,7 +174,7 @@ class Configuration(Mapping):
         return iter(self._conf)
 
     def __keys__(self):
-        return self._conf.keys()
+        return list(self._conf.keys())
 
     def __str__(self):
         '''
